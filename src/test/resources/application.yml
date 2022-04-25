@@ -1,0 +1,6 @@
+kestra:
+  storage:
+    type: azure
+    azure:
+      endpoint: "https://unittestkt.blob.core.windows.net"
+      container: storage
