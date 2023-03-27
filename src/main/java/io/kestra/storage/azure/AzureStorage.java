@@ -1,6 +1,5 @@
 package io.kestra.storage.azure;
 
-import com.azure.core.util.BinaryData;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.models.BlobStorageException;
@@ -74,7 +73,9 @@ public class AzureStorage implements StorageInterface {
         try {
             BlobClient blobClient = this.blob(URI.create(uri.getPath()));
 
-            blobClient.upload(BinaryData.fromStream(data), true);
+            try (data) {
+                blobClient.upload(data, true);
+            }
 
             return URI.create("kestra://" + uri.getPath());
         } catch (BlobStorageException e) {
