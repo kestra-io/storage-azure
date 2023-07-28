@@ -14,6 +14,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -54,6 +55,16 @@ public class AzureStorage implements StorageInterface {
     }
 
     @Override
+    public boolean exists(URI uri) {
+        try {
+            BlobClient blobClient = this.blob(URI.create(uri.getPath()));
+            return blobClient.exists();
+        } catch (BlobStorageException e) {
+            return false;
+        }
+    }
+
+    @Override
     public Long size(URI uri) throws IOException {
         try {
             BlobClient blobClient = this.blob(URI.create(uri.getPath()));
@@ -63,6 +74,21 @@ public class AzureStorage implements StorageInterface {
             }
 
             return blobClient.getProperties().getBlobSize();
+        } catch (BlobStorageException e) {
+            throw new IOException(e);
+        }
+    }
+
+    @Override
+    public Long lastModifiedTime(URI uri) throws IOException {
+        try {
+            BlobClient blobClient = this.blob(URI.create(uri.getPath()));
+
+            if (!blobClient.exists()) {
+                throw new FileNotFoundException(uri + " (File not found)");
+            }
+
+            return blobClient.getProperties().getLastModified().toInstant().toEpochMilli();
         } catch (BlobStorageException e) {
             throw new IOException(e);
         }
