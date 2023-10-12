@@ -161,6 +161,9 @@ public class AzureStorage implements StorageInterface {
     }
 
     private URI getURI(String tenantId, URI uri) {
+        if (tenantId == null) {
+            return URI.create(uri.getPath());
+        }
         return URI.create("/" + tenantId + uri.getPath());
     }
 }
