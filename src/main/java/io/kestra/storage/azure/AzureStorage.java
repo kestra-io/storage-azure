@@ -14,7 +14,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.nio.file.Files;
 import java.time.Duration;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -40,9 +39,9 @@ public class AzureStorage implements StorageInterface {
     }
 
     @Override
-    public InputStream get(URI uri) throws IOException {
+    public InputStream get(String tenantId, URI uri) throws IOException {
         try {
-            BlobClient blobClient = this.blob(URI.create(uri.getPath()));
+            BlobClient blobClient = this.blob(getURI(tenantId, uri));
 
             if (!blobClient.exists()) {
                 throw new FileNotFoundException(uri + " (File not found)");
@@ -55,9 +54,9 @@ public class AzureStorage implements StorageInterface {
     }
 
     @Override
-    public boolean exists(URI uri) {
+    public boolean exists(String tenantId, URI uri) {
         try {
-            BlobClient blobClient = this.blob(URI.create(uri.getPath()));
+            BlobClient blobClient = this.blob(getURI(tenantId, uri));
             return blobClient.exists();
         } catch (BlobStorageException e) {
             return false;
@@ -65,9 +64,9 @@ public class AzureStorage implements StorageInterface {
     }
 
     @Override
-    public Long size(URI uri) throws IOException {
+    public Long size(String tenantId, URI uri) throws IOException {
         try {
-            BlobClient blobClient = this.blob(URI.create(uri.getPath()));
+            BlobClient blobClient = this.blob(getURI(tenantId, uri));
 
             if (!blobClient.exists()) {
                 throw new FileNotFoundException(uri + " (File not found)");
@@ -80,9 +79,9 @@ public class AzureStorage implements StorageInterface {
     }
 
     @Override
-    public Long lastModifiedTime(URI uri) throws IOException {
+    public Long lastModifiedTime(String tenantId, URI uri) throws IOException {
         try {
-            BlobClient blobClient = this.blob(URI.create(uri.getPath()));
+            BlobClient blobClient = this.blob(getURI(tenantId, uri));
 
             if (!blobClient.exists()) {
                 throw new FileNotFoundException(uri + " (File not found)");
@@ -95,9 +94,9 @@ public class AzureStorage implements StorageInterface {
     }
 
     @Override
-    public URI put(URI uri, InputStream data) throws IOException {
+    public URI put(String tenantId, URI uri, InputStream data) throws IOException {
         try {
-            BlobClient blobClient = this.blob(URI.create(uri.getPath()));
+            BlobClient blobClient = this.blob(getURI(tenantId, uri));
 
             try (data) {
                 blobClient.upload(data, true);
@@ -109,9 +108,9 @@ public class AzureStorage implements StorageInterface {
         }
     }
 
-    public boolean delete(URI uri) throws IOException {
+    public boolean delete(String tenantId, URI uri) throws IOException {
         try {
-            BlobClient blobClient = this.blob(URI.create(uri.getPath()));
+            BlobClient blobClient = this.blob(getURI(tenantId, uri));
 
             if (!blobClient.exists()) {
                 return false;
@@ -126,12 +125,12 @@ public class AzureStorage implements StorageInterface {
     }
 
     @Override
-    public List<URI> deleteByPrefix(URI storagePrefix) throws IOException {
+    public List<URI> deleteByPrefix(String tenantId, URI storagePrefix) throws IOException {
         try {
             BlobContainerClient client = this.client();
 
             ListBlobsOptions listBlobsOptions = new ListBlobsOptions();
-            listBlobsOptions.setPrefix(storagePrefix.getPath());
+            listBlobsOptions.setPrefix(getURI(tenantId, storagePrefix).getPath());
 
             List<String> deleted = Streams
                 .stream(client.listBlobs(listBlobsOptions, Duration.ofSeconds(30)))
@@ -154,10 +153,14 @@ public class AzureStorage implements StorageInterface {
 
             return deleted
                 .stream()
-                .map(s -> URI.create("kestra:///" + s))
+                .map(s -> URI.create("kestra:///" + s.replace(tenantId + "/", "")))
                 .collect(Collectors.toList());
         } catch (BlobStorageException e) {
             throw new IOException(e);
         }
+    }
+
+    private URI getURI(String tenantId, URI uri) {
+        return URI.create("/" + tenantId + uri.getPath());
     }
 }
