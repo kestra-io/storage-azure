@@ -45,7 +45,7 @@ class AzureStorageTest {
     }
 
     @Test
-    void get_NoTenant() throws Exception {
+    void getNoTenant() throws Exception {
         String prefix = IdUtils.create();
         String tenantId = IdUtils.create();
 
@@ -120,7 +120,7 @@ class AzureStorageTest {
     }
 
     @Test
-    void deleteByPrefix_NoTenant() throws Exception {
+    void deleteByPrefixNoTenant() throws Exception {
         String prefix = IdUtils.create();
         String tenantId = null;
 
