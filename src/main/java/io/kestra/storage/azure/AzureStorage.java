@@ -229,7 +229,7 @@ public class AzureStorage implements StorageInterface {
             mkdirs(dest);
             BlobClient sourceClient = client.getBlobClient(itemResult.getName());
             SyncPoller<BlobCopyInfo, Void> poller = client.getBlobClient(destName).beginCopy(sourceClient.getBlobUrl(),
-                Duration.ofSeconds(30));
+                Duration.ofSeconds(1));
             poller.waitForCompletion();
         }
         deleteByPrefix(tenantId, from);
@@ -303,11 +303,20 @@ public class AzureStorage implements StorageInterface {
     }
 
     private String getPath(String tenantId, URI uri) {
-        parentTraversalGuard(uri);
-        if (tenantId == null) {
-            return uri.getPath();
+        if (uri == null) {
+            uri = URI.create("/");
         }
-        return "/" + tenantId + uri.getPath();
+
+        parentTraversalGuard(uri);
+        String path = uri.getPath();
+        if (!path.startsWith("/")) {
+            path = "/" + path;
+        }
+
+        if (tenantId == null) {
+            return path;
+        }
+        return "/" + tenantId + path;
     }
 
     // Traversal does not work with azure but it just return empty objects so throwing is more explicit
