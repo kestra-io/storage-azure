@@ -6,11 +6,14 @@ import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
 import io.micronaut.context.annotation.Factory;
+import jakarta.inject.Singleton;
 
 @Factory
 @AzureStorageEnabled
 public class AzureClientFactory {
-    protected BlobContainerClient client(AzureConfig config) {
+
+    @Singleton
+    public BlobContainerClient client(AzureConfig config) {
         BlobServiceClientBuilder builder = new BlobServiceClientBuilder()
             .endpoint(config.getEndpoint());
 
