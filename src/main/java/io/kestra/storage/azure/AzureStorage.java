@@ -29,18 +29,12 @@ import static io.kestra.core.utils.Rethrow.throwFunction;
 @Introspected
 public class AzureStorage implements StorageInterface {
     private static final String DIRECTORY_MARKER_FILE = ".kestradirectory";
-    @Inject
-    AzureClientFactory factory;
 
     @Inject
-    AzureConfig config;
-
-    private BlobContainerClient client() {
-        return factory.client(config);
-    }
+    BlobContainerClient blobContainerClient;
 
     private BlobClient blob(URI uri) {
-        return this.client().getBlobClient(uri.getPath());
+        return this.blobContainerClient.getBlobClient(uri.getPath());
     }
 
     @Override
@@ -63,7 +57,7 @@ public class AzureStorage implements StorageInterface {
         String path = getPath(tenantId, uri);
         String prefix = (path.endsWith("/")) ? path : path + "/";
 
-        if (!client().getBlobClient(prefix).exists()) {
+        if (!this.blobContainerClient.getBlobClient(prefix).exists()) {
             throw new FileNotFoundException(uri + " (Not Found)");
         }
 
@@ -71,7 +65,7 @@ public class AzureStorage implements StorageInterface {
             .setPrefix(prefix)
             .setDetails(new BlobListDetails().setRetrieveDeletedBlobs(false).setRetrieveSnapshots(false));
 
-        return this.client().listBlobsByHierarchy("/", listBlobsOptions, null).stream()
+        return this.blobContainerClient.listBlobsByHierarchy("/", listBlobsOptions, null).stream()
             .map(BlobItem::getName)
             .filter(key -> {
                 key = "/" + key;
@@ -133,9 +127,9 @@ public class AzureStorage implements StorageInterface {
     private FileAttributes getFileAttributes(String path) throws FileNotFoundException {
         String fileName = Path.of(path).getFileName().toString();
 
-        BlobClient blobClient = this.client().getBlobClient(path);
+        BlobClient blobClient = this.blobContainerClient.getBlobClient(path);
         if (!path.endsWith("/")) {
-            BlobClient dirBlobClient = this.client().getBlobClient(path + "/" + DIRECTORY_MARKER_FILE);
+            BlobClient dirBlobClient = this.blobContainerClient.getBlobClient(path + "/" + DIRECTORY_MARKER_FILE);
             if (dirBlobClient.exists()) {
                 path += "/";
                 blobClient = dirBlobClient;
@@ -173,7 +167,7 @@ public class AzureStorage implements StorageInterface {
         if (isDir(path)) {
             return !deleteByPrefix(tenantId, uri).isEmpty();
         }
-        BlobClient blobClient = this.client().getBlobClient(path);
+        BlobClient blobClient = this.blobContainerClient.getBlobClient(path);
         if (!blobClient.exists()) {
             return false;
         }
@@ -215,7 +209,7 @@ public class AzureStorage implements StorageInterface {
         String source = getPath(tenantId, from);
         String dest = getPath(tenantId, to);
 
-        BlobContainerClient client = this.client();
+        BlobContainerClient client = this.blobContainerClient;
 
         ListBlobsOptions listBlobsOptions = new ListBlobsOptions()
             .setPrefix(getPath(tenantId, from))
@@ -239,7 +233,7 @@ public class AzureStorage implements StorageInterface {
     @Override
     public List<URI> deleteByPrefix(String tenantId, URI storagePrefix) throws IOException {
         try {
-            BlobContainerClient client = this.client();
+            BlobContainerClient client = this.blobContainerClient;
 
             String path = getPath(tenantId, storagePrefix);
             if (!path.endsWith("/")) {
@@ -258,7 +252,7 @@ public class AzureStorage implements StorageInterface {
                     directories.add(name);
                     continue;
                 }
-                BlobClient blobClient = this.client().getBlobClient(name);
+                BlobClient blobClient = this.blobContainerClient.getBlobClient(name);
                 blobClient.delete();
                 if (!name.endsWith(DIRECTORY_MARKER_FILE)) {
                     // We do not want to output the hidden file we use to mark directory as deleted
@@ -270,7 +264,7 @@ public class AzureStorage implements StorageInterface {
             directories.add(path.substring(1, path.length() - 1));
             directories.sort((s1, s2) -> s2.length() - s1.length());
             for (String directory : directories) {
-                BlobClient blobClient = this.client().getBlobClient(directory);
+                BlobClient blobClient = this.blobContainerClient.getBlobClient(directory);
                 blobClient.delete();
                 deleted.add(directory);
             }
@@ -288,7 +282,7 @@ public class AzureStorage implements StorageInterface {
 
     private Boolean isDir(String path) {
         // To check if a path is in fact a directory we check if our hidden file exists inside it
-        return this.client().getBlobClient(path + "/" + DIRECTORY_MARKER_FILE).exists();
+        return this.blobContainerClient.getBlobClient(path + "/" + DIRECTORY_MARKER_FILE).exists();
     }
 
     private IOException reThrowBlobStorageException(URI storagePrefix, BlobStorageException e) {
