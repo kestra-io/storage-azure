@@ -1,5 +1,6 @@
 package io.kestra.storage.azure;
 
+import com.azure.core.http.rest.PagedIterable;
 import com.azure.core.util.polling.SyncPoller;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
@@ -21,6 +22,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 import static io.kestra.core.utils.Rethrow.throwFunction;
 
@@ -53,6 +55,16 @@ public class AzureStorage implements StorageInterface {
     }
 
     @Override
+    public List<URI> filesByPrefix(String tenantId, URI prefix) {
+        String path = getPath(tenantId, prefix);
+        String prefixPath = prefix.getPath();
+        return removeDirectoryEntries(keysForPrefix(path, true))
+            .map(key -> prefixPath.startsWith("/") ? "/" + key : key)
+            .map(key -> URI.create("kestra://" + prefixPath + key.substring(path.length())))
+            .toList();
+    }
+
+    @Override
     public List<FileAttributes> list(String tenantId, URI uri) throws IOException {
         String path = getPath(tenantId, uri);
         String prefix = (path.endsWith("/")) ? path : path + "/";
@@ -61,21 +73,40 @@ public class AzureStorage implements StorageInterface {
             throw new FileNotFoundException(uri + " (Not Found)");
         }
 
+        return dedupDirectoryEntries(
+            keysForPrefix(prefix, false)
+        ).map(throwFunction(this::getFileAttributes))
+            .toList();
+    }
+    
+    private Stream<String> dedupDirectoryEntries(Stream<String> keys) {
+        return keys.filter(key -> !key.endsWith(DIRECTORY_MARKER_FILE));
+    }
+
+    private Stream<String> removeDirectoryEntries(Stream<String> keys) {
+        List<String> keysList = keys.toList();
+        return dedupDirectoryEntries(
+            keysList.stream()
+        // also remove directory entry based on whether or not original entries contain a directory marker file under the entry
+        ).filter(key -> !keysList.contains(key + "/" + DIRECTORY_MARKER_FILE));
+    }
+
+    private Stream<String> keysForPrefix(String prefix, boolean recursive) {
         ListBlobsOptions listBlobsOptions = new ListBlobsOptions()
             .setPrefix(prefix)
             .setDetails(new BlobListDetails().setRetrieveDeletedBlobs(false).setRetrieveSnapshots(false));
 
-        return this.blobContainerClient.listBlobsByHierarchy("/", listBlobsOptions, null).stream()
+        PagedIterable<BlobItem> blobItems = recursive ? this.blobContainerClient.listBlobs(listBlobsOptions, null)
+            : this.blobContainerClient.listBlobsByHierarchy("/", listBlobsOptions, null);
+        return blobItems.stream()
             .map(BlobItem::getName)
             .filter(key -> {
                 key = "/" + key;
                 key = key.substring(prefix.length());
                 // Remove recursive result and requested dir
-                return !key.isEmpty() && !Objects.equals(key, prefix)
-                    && !key.endsWith(DIRECTORY_MARKER_FILE);
-            })
-            .map(throwFunction(this::getFileAttributes))
-            .toList();
+                return !key.isEmpty()
+                    && !Objects.equals(key, prefix);
+            });
     }
 
     @Override
