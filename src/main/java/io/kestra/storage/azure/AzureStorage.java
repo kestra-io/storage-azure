@@ -55,10 +55,10 @@ public class AzureStorage implements StorageInterface {
     }
 
     @Override
-    public List<URI> filesByPrefix(String tenantId, URI prefix) {
+    public List<URI> allByPrefix(String tenantId, URI prefix, boolean includeDirectories) {
         String path = getPath(tenantId, prefix);
         String prefixPath = prefix.getPath();
-        return removeDirectoryEntries(keysForPrefix(path, true))
+        return addTrailingSlashToDirectories(keysForPrefix(path, true, includeDirectories))
             .map(key -> prefixPath.startsWith("/") ? "/" + key : key)
             .map(key -> URI.create("kestra://" + prefixPath + key.substring(path.length())))
             .toList();
@@ -74,7 +74,7 @@ public class AzureStorage implements StorageInterface {
         }
 
         return dedupDirectoryEntries(
-            keysForPrefix(prefix, false)
+            keysForPrefix(prefix, false, true)
         ).map(throwFunction(this::getFileAttributes))
             .toList();
     }
@@ -83,30 +83,42 @@ public class AzureStorage implements StorageInterface {
         return keys.filter(key -> !key.endsWith(DIRECTORY_MARKER_FILE));
     }
 
-    private Stream<String> removeDirectoryEntries(Stream<String> keys) {
+    private Stream<String> addTrailingSlashToDirectories(Stream<String> keys) {
         List<String> keysList = keys.toList();
         return dedupDirectoryEntries(
             keysList.stream()
-        // also remove directory entry based on whether or not original entries contain a directory marker file under the entry
-        ).filter(key -> !keysList.contains(key + "/" + DIRECTORY_MARKER_FILE));
+        ).map(key -> {
+            if (keysList.contains(key + "/" + DIRECTORY_MARKER_FILE)) {
+                return key + "/";
+            }
+
+            return key;
+        });
     }
 
-    private Stream<String> keysForPrefix(String prefix, boolean recursive) {
+    private Stream<String> keysForPrefix(String prefix, boolean recursive, boolean includeDirectories) {
         ListBlobsOptions listBlobsOptions = new ListBlobsOptions()
             .setPrefix(prefix)
             .setDetails(new BlobListDetails().setRetrieveDeletedBlobs(false).setRetrieveSnapshots(false));
 
         PagedIterable<BlobItem> blobItems = recursive ? this.blobContainerClient.listBlobs(listBlobsOptions, null)
             : this.blobContainerClient.listBlobsByHierarchy("/", listBlobsOptions, null);
-        return blobItems.stream()
+        List<String> blobsKeys = blobItems.stream()
             .map(BlobItem::getName)
+            .toList();
+        return blobsKeys
+            .stream()
             .filter(key -> {
-                key = "/" + key;
-                key = key.substring(prefix.length());
+                String withoutPrefix = ("/" + key).substring(prefix.length());
                 // Remove recursive result and requested dir
-                return !key.isEmpty()
-                    && !Objects.equals(key, prefix);
+                return !withoutPrefix.isEmpty()
+                    && !Objects.equals(withoutPrefix, prefix)
+                    && (includeDirectories || !isDirectory(key, blobsKeys));
             });
+    }
+
+    private static boolean isDirectory(String key, List<String> blobsKeys) {
+        return key.endsWith(DIRECTORY_MARKER_FILE) || blobsKeys.contains(key + "/" + DIRECTORY_MARKER_FILE);
     }
 
     @Override
@@ -217,15 +229,16 @@ public class AzureStorage implements StorageInterface {
     }
 
     private void mkdirs(String path) throws IOException {
-        if (!path.endsWith("/") && path.lastIndexOf('/') > 0) {
-            path = path.substring(0, path.lastIndexOf('/') + 1);
-        }
-
-        path += DIRECTORY_MARKER_FILE;
-
+        path = path.replaceAll("^/*", "");
+        String[] directories = path.split("/");
+        StringBuilder aggregatedPath = new StringBuilder("/");
         try {
-            BlobClient blobClient = this.blob(URI.create(path));
-            blobClient.upload(new ByteArrayInputStream(new byte[]{}), true);
+            // perform 1 put request per parent directory in the path
+            for (int i = 0; i <= directories.length - (path.endsWith("/") ? 1 : 2); i++) {
+                aggregatedPath.append(directories[i]).append("/");
+                BlobClient blobClient = this.blob(URI.create(aggregatedPath + DIRECTORY_MARKER_FILE));
+                blobClient.upload(new ByteArrayInputStream(new byte[]{}), true);
+            }
         } catch (BlobStorageException e) {
             throw reThrowBlobStorageException(URI.create(path), e);
         }
