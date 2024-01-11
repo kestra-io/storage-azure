@@ -132,36 +132,6 @@ public class AzureStorage implements StorageInterface {
     }
 
     @Override
-    public Long size(String tenantId, URI uri) throws IOException {
-        try {
-            BlobClient blobClient = this.blob(getURI(tenantId, uri));
-
-            if (!blobClient.exists()) {
-                throw new FileNotFoundException(uri + " (File not found)");
-            }
-
-            return blobClient.getProperties().getBlobSize();
-        } catch (BlobStorageException e) {
-            throw reThrowBlobStorageException(uri, e);
-        }
-    }
-
-    @Override
-    public Long lastModifiedTime(String tenantId, URI uri) throws IOException {
-        try {
-            BlobClient blobClient = this.blob(getURI(tenantId, uri));
-
-            if (!blobClient.exists()) {
-                throw new FileNotFoundException(uri + " (File not found)");
-            }
-
-            return blobClient.getProperties().getLastModified().toInstant().toEpochMilli();
-        } catch (BlobStorageException e) {
-            throw reThrowBlobStorageException(uri, e);
-        }
-    }
-
-    @Override
     public FileAttributes getAttributes(String tenantId, URI uri) throws IOException {
         String path = getPath(tenantId, uri);
         return getFileAttributes(path);
