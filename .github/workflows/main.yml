@@ -48,7 +48,7 @@ jobs:
         env:
           AZURE_APPLICATION: ${{ secrets.AZURE_APPLICATION }}
         run: |
-          echo $AZURE_APPLICATION | base64 -d > src/test/resources/application-test.yml
+          echo $AZURE_APPLICATION | base64 -d > src/test/resources/application-secrets.yml
           ./gradlew check 
 
       # Publish
