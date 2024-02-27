@@ -51,7 +51,7 @@ dependencies {
     compileOnly group: "io.kestra", name: "core", version: kestraVersion
 
     // azure
-    api platform("com.azure:azure-sdk-bom:1.2.19")
+    api platform("com.azure:azure-sdk-bom:1.2.21")
     api group: 'com.azure', name: 'azure-identity'
     api group: 'com.azure', name: 'azure-storage-blob'
 }
