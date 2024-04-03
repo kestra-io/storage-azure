@@ -132,6 +132,9 @@ pom {
 shadowJar {
     archiveClassifier.set(null)
     mergeServiceFiles()
+    dependencies {
+        exclude "org/slf4j/**"
+    }
 }
 
 github {
