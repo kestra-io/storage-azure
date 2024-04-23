@@ -22,8 +22,8 @@ repositories {
     }
 }
 
-sourceCompatibility = 17
-targetCompatibility = 17
+sourceCompatibility = 21
+targetCompatibility = 21
 
 group "io.kestra.storage"
 description = 'Azure Blob Storage plugin for Kestra'
@@ -49,6 +49,7 @@ dependencies {
 
     // kestra
     compileOnly group: "io.kestra", name: "core", version: kestraVersion
+    annotationProcessor group: "io.kestra", name: "processor", version: kestraVersion
 
     // azure
     api platform("com.azure:azure-sdk-bom:1.2.22")
@@ -92,6 +93,7 @@ dependencies {
 
     testImplementation group: "io.kestra", name: "core", version: kestraVersion
     testImplementation group: "io.kestra", name: "core", version: kestraVersion, classifier: 'tests'
+    testAnnotationProcessor group: "io.kestra", name: "processor", version: kestraVersion
 }
 
 /**********************************************************************************************************************\
