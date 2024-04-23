@@ -5,11 +5,13 @@ import com.azure.core.util.polling.SyncPoller;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.models.*;
+import io.kestra.core.models.annotations.Plugin;
 import io.kestra.core.storages.FileAttributes;
 import io.kestra.core.storages.StorageInterface;
 import io.micronaut.core.annotation.Introspected;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
+import lombok.NoArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.ByteArrayInputStream;
@@ -29,6 +31,8 @@ import static io.kestra.core.utils.Rethrow.throwFunction;
 @Singleton
 @AzureStorageEnabled
 @Introspected
+@Plugin
+@NoArgsConstructor
 public class AzureStorage implements StorageInterface {
     private static final String DIRECTORY_MARKER_FILE = ".kestradirectory";
 
