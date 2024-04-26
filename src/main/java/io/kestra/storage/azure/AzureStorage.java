@@ -8,10 +8,12 @@ import com.azure.storage.blob.models.*;
 import io.kestra.core.models.annotations.Plugin;
 import io.kestra.core.storages.FileAttributes;
 import io.kestra.core.storages.StorageInterface;
-import io.micronaut.core.annotation.Introspected;
-import jakarta.inject.Inject;
-import jakarta.inject.Singleton;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.extern.jackson.Jacksonized;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.ByteArrayInputStream;
@@ -27,17 +29,37 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 import static io.kestra.core.utils.Rethrow.throwFunction;
-
-@Singleton
-@AzureStorageEnabled
-@Introspected
-@Plugin
+@Builder
+@Jacksonized
 @NoArgsConstructor
-public class AzureStorage implements StorageInterface {
+@AllArgsConstructor
+@Getter
+@Plugin
+@Plugin.Id("azure")
+public class AzureStorage implements AzureConfig, StorageInterface {
+
     private static final String DIRECTORY_MARKER_FILE = ".kestradirectory";
 
-    @Inject
-    BlobContainerClient blobContainerClient;
+    private String endpoint;
+
+    private String container;
+
+    private String connectionString;
+
+    private String sharedKeyAccountName;
+
+    private String sharedKeyAccountAccessKey;
+
+    private String sasToken;
+
+    @Getter(AccessLevel.PRIVATE)
+    private BlobContainerClient blobContainerClient;
+
+    /** {@inheritDoc} **/
+    @Override
+    public void init() {
+        this.blobContainerClient = AzureClientFactory.of(this);
+    }
 
     private BlobClient blob(URI uri) {
         return this.blobContainerClient.getBlobClient(uri.getPath());

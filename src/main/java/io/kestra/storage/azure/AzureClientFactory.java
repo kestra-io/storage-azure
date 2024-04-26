@@ -5,26 +5,21 @@ import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
-import io.micronaut.context.annotation.Factory;
-import jakarta.inject.Singleton;
 
-@Factory
-@AzureStorageEnabled
-public class AzureClientFactory {
+public final class AzureClientFactory {
 
-    @Singleton
-    public BlobContainerClient client(AzureConfig config) {
+    public static BlobContainerClient of(final AzureConfig config) {
         BlobServiceClientBuilder builder = new BlobServiceClientBuilder()
             .endpoint(config.getEndpoint());
 
         if (config.getConnectionString() != null) {
             builder.connectionString(config.getConnectionString());
-        } else if (config.sharedKeyAccountName != null && config.sharedKeyAccountAccessKey != null) {
+        } else if (config.getSharedKeyAccountName() != null && config.getSharedKeyAccountAccessKey() != null) {
             builder.credential(new AzureNamedKeyCredential(
                 config.getSharedKeyAccountName(),
                 config.getSharedKeyAccountAccessKey()
             ));
-        } else if (config.sasToken != null ) {
+        } else if (config.getSasToken() != null ) {
             builder.sasToken(config.getSasToken());
         } else {
             builder.credential(new DefaultAzureCredentialBuilder().build());
