@@ -1,23 +1,24 @@
 package io.kestra.storage.azure;
 
-import io.micronaut.context.annotation.ConfigurationProperties;
-import lombok.Getter;
+import io.kestra.core.models.annotations.PluginProperty;
 
-import jakarta.inject.Singleton;
+public interface AzureConfig {
 
-@Singleton
-@Getter
-@ConfigurationProperties("kestra.storage.azure")
-public class AzureConfig {
-    protected String endpoint;
+    @PluginProperty
+    String getEndpoint();
 
-    protected String container;
+    @PluginProperty
+    String getContainer();
 
-    protected String connectionString;
+    @PluginProperty
+    String getConnectionString();
 
-    protected String sharedKeyAccountName;
+    @PluginProperty
+    String getSharedKeyAccountName();
 
-    protected String sharedKeyAccountAccessKey;
+    @PluginProperty
+    String getSharedKeyAccountAccessKey();
 
-    protected String sasToken;
+    @PluginProperty
+    String getSasToken();
 }
