@@ -95,7 +95,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
         String path = getPath(tenantId, uri);
         String prefix = (path.endsWith("/")) ? path : path + "/";
 
-        if (!this.blobContainerClient.getBlobClient(prefix).exists()) {
+        if (!this.dirExists(path)) {
             throw new FileNotFoundException(uri + " (Not Found)");
         }
 
@@ -150,7 +150,11 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     @Override
     public boolean exists(String tenantId, URI uri) {
         try {
-            BlobClient blobClient = this.blob(getURI(tenantId, uri));
+            URI uriToCheck = uri;
+            if (uri.getPath().endsWith("/")) {
+                uriToCheck = uri.resolve(DIRECTORY_MARKER_FILE);
+            }
+            BlobClient blobClient = this.blob(getURI(tenantId, uriToCheck));
             return blobClient.exists();
         } catch (BlobStorageException e) {
             return false;
@@ -166,22 +170,20 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     private FileAttributes getFileAttributes(String path) throws FileNotFoundException {
         String fileName = Path.of(path).getFileName().toString();
 
-        BlobClient blobClient = this.blobContainerClient.getBlobClient(path);
-        if (!path.endsWith("/")) {
-            BlobClient dirBlobClient = this.blobContainerClient.getBlobClient(path + "/" + DIRECTORY_MARKER_FILE);
-            if (dirBlobClient.exists()) {
-                path += "/";
-                blobClient = dirBlobClient;
+        BlobProperties props = this.getDirProperties(path);
+        boolean isFile = props == null;
+        if (isFile) {
+            BlobClient blobClient = this.blobContainerClient.getBlobClient(path);
+            if (!blobClient.exists()) {
+                throw new FileNotFoundException(fileName + " (File not found)");
             }
-        }
-        if (!blobClient.exists()) {
-            throw new FileNotFoundException(fileName + " (File not found)");
+            props = blobClient.getProperties();
         }
 
         return AzureFileAttributes.builder()
             .fileName(fileName)
-            .isDirectory(path.endsWith("/") || path.endsWith(DIRECTORY_MARKER_FILE))
-            .properties(blobClient.getProperties())
+            .isDirectory(!isFile)
+            .properties(props)
             .build();
     }
 
@@ -203,7 +205,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
 
     public boolean delete(String tenantId, URI uri) throws IOException {
         String path = getPath(tenantId, uri);
-        if (isDir(path)) {
+        if (this.dirExists(path)) {
             return !deleteByPrefix(tenantId, uri).isEmpty();
         }
         BlobClient blobClient = this.blobContainerClient.getBlobClient(path);
@@ -225,15 +227,17 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     }
 
     private void mkdirs(String path) throws IOException {
-        path = path.replaceAll("^/*", "");
+        path = path.startsWith("/") ? path : "/" + path;
         String[] directories = path.split("/");
-        StringBuilder aggregatedPath = new StringBuilder("/");
+        StringBuilder aggregatedPath = new StringBuilder();
         try {
             // perform 1 put request per parent directory in the path
             for (int i = 0; i <= directories.length - (path.endsWith("/") ? 1 : 2); i++) {
                 aggregatedPath.append(directories[i]).append("/");
-                BlobClient blobClient = this.blob(URI.create(aggregatedPath + DIRECTORY_MARKER_FILE));
-                blobClient.upload(new ByteArrayInputStream(new byte[]{}), true);
+                if (!this.dirExists(aggregatedPath.toString())) {
+                    BlobClient blobClient = this.blob(URI.create(aggregatedPath + DIRECTORY_MARKER_FILE));
+                    blobClient.upload(new ByteArrayInputStream(new byte[]{}), true);
+                }
             }
         } catch (BlobStorageException e) {
             throw reThrowBlobStorageException(URI.create(path), e);
@@ -255,7 +259,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             .setPrefix(getPath(tenantId, from))
             .setDetails(new BlobListDetails().setRetrieveDeletedBlobs(false).setRetrieveSnapshots(false));
         for (BlobItem itemResult : client.listBlobs(listBlobsOptions, Duration.ofSeconds(30))) {
-            if (isDir(itemResult.getName())) {
+            if (!itemResult.getName().endsWith(DIRECTORY_MARKER_FILE) && this.dirExists(itemResult.getName())) {
                 // do not copy directories
                 continue;
             }
@@ -287,15 +291,15 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             List<String> directories = new ArrayList<>();
             for (BlobItem itemResult : client.listBlobs(listBlobsOptions, Duration.ofSeconds(30))) {
                 String name = itemResult.getName();
-                Boolean isDir = isDir(name);
-                if (isDir) {
-                    directories.add(name);
+                String strippedDirMarker = name.replace("/" + DIRECTORY_MARKER_FILE, "/");
+                if (this.dirExists(name) && !name.endsWith(DIRECTORY_MARKER_FILE)) {
+                    directories.add(strippedDirMarker);
                     continue;
                 }
                 BlobClient blobClient = this.blobContainerClient.getBlobClient(name);
                 blobClient.delete();
+
                 if (!name.endsWith(DIRECTORY_MARKER_FILE)) {
-                    // We do not want to output the hidden file we use to mark directory as deleted
                     deleted.add(name);
                 }
             }
@@ -320,9 +324,28 @@ public class AzureStorage implements AzureConfig, StorageInterface {
         }
     }
 
-    private Boolean isDir(String path) {
-        // To check if a path is in fact a directory we check if our hidden file exists inside it
-        return this.blobContainerClient.getBlobClient(path + "/" + DIRECTORY_MARKER_FILE).exists();
+    private boolean dirExists(String path) {
+        String dirPath = toDirPath(path);
+        return this.blobContainerClient.getBlobClient(dirPath).exists();
+    }
+
+    private String toDirPath(String path) {
+        String dirPath = path;
+        if (!path.endsWith(DIRECTORY_MARKER_FILE)) {
+            dirPath = path + (path.endsWith("/") ? "" : "/") + DIRECTORY_MARKER_FILE;
+        }
+        return dirPath;
+    }
+
+    private BlobProperties getDirProperties(String path) {
+        try {
+            return this.blobContainerClient.getBlobClient(this.toDirPath(path)).getProperties();
+        } catch (BlobStorageException e) {
+            if (e.getStatusCode() == 404) {
+                return null;
+            }
+            throw e;
+        }
     }
 
     private IOException reThrowBlobStorageException(URI storagePrefix, BlobStorageException e) {
