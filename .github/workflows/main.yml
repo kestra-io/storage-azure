@@ -84,6 +84,16 @@ jobs:
           copyLatest: true
           ignoreMissingResults: true
 
+      # Jacoco
+      - name: 'Set up Cloud SDK'
+        if: ${{ always() && env.GOOGLE_SERVICE_ACCOUNT != 0 }}
+        uses: 'google-github-actions/setup-gcloud@v2'
+
+      - name: 'Copy jacoco files'
+        if: ${{ always() && env.GOOGLE_SERVICE_ACCOUNT != 0 }}
+        run: |
+          gsutil -m rsync -d -r  build/reports/jacoco/test/ gs://internal-kestra-host/${{ format('{0}/{1}/{2}', github.repository, env.GITHUB_HEAD_REF_SLUG != '' && env.GITHUB_HEAD_REF_SLUG || github.ref_name, 'jacoco') }}
+
       # Publish
       - name: Publish package to Sonatype
         if: github.ref == 'refs/heads/master'
@@ -99,6 +109,7 @@ jobs:
           echo "signing.secretKeyRingFile=${HOME}/.gradle/secring.gpg" >> ~/.gradle/gradle.properties
           echo ${SONATYPE_GPG_FILE} | base64 -d > ~/.gradle/secring.gpg
           ./gradlew publishToSonatype
+
 
       # Release
       - name: Release package to Maven Central
