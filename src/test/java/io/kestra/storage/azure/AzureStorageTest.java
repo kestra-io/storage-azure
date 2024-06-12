@@ -1,8 +1,8 @@
 package io.kestra.storage.azure;
 
 import io.kestra.core.storage.StorageTestSuite;
-import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
+import io.kestra.core.junit.annotations.KestraTest;
 
-@MicronautTest(environments = "secrets")
+@KestraTest(environments = "secrets")
 class AzureStorageTest extends StorageTestSuite {
 }
