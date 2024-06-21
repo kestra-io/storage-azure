@@ -35,9 +35,14 @@ tasks.withType(JavaCompile) {
 }
 
 dependencies {
+    // Platform
+    annotationProcessor enforcedPlatform("io.kestra:platform:$kestraVersion")
+    implementation enforcedPlatform("io.kestra:platform:$kestraVersion")
+    api enforcedPlatform("io.kestra:platform:$kestraVersion")
+
     // lombok
-    annotationProcessor "org.projectlombok:lombok:$lombokVersion"
-    compileOnly "org.projectlombok:lombok:$lombokVersion"
+    annotationProcessor "org.projectlombok:lombok"
+    compileOnly "org.projectlombok:lombok"
 
     // kestra
     compileOnly group: "io.kestra", name: "core", version: kestraVersion
@@ -67,21 +72,22 @@ testlogger {
 }
 
 dependencies {
+    // Platform
+    testAnnotationProcessor enforcedPlatform("io.kestra:platform:$kestraVersion")
+    testImplementation enforcedPlatform("io.kestra:platform:$kestraVersion")
+
     // lombok
-    testAnnotationProcessor "org.projectlombok:lombok:" + lombokVersion
-    testCompileOnly 'org.projectlombok:lombok:' + lombokVersion
+    testAnnotationProcessor "org.projectlombok:lombok"
+    testCompileOnly 'org.projectlombok:lombok'
 
     // micronaut
-    testAnnotationProcessor platform("io.micronaut.platform:micronaut-platform:$micronautVersion")
     testAnnotationProcessor "io.micronaut:micronaut-inject-java"
     testAnnotationProcessor "io.micronaut.validation:micronaut-validation-processor"
-
-    testImplementation platform("io.micronaut.platform:micronaut-platform:$micronautVersion")
     testImplementation "io.micronaut.test:micronaut-test-junit5"
 
     testImplementation "org.junit.jupiter:junit-jupiter-engine"
-    testImplementation "org.hamcrest:hamcrest:2.2"
-    testImplementation "org.hamcrest:hamcrest-library:2.2"
+    testImplementation "org.hamcrest:hamcrest"
+    testImplementation "org.hamcrest:hamcrest-library"
 
     testImplementation group: "io.kestra", name: "core", version: kestraVersion
     testImplementation group: "io.kestra", name: "tests", version: kestraVersion
@@ -92,7 +98,7 @@ dependencies {
  * Allure Reports
  **********************************************************************************************************************/
 dependencies {
-    testImplementation platform("io.qameta.allure:allure-bom:2.27.0")
+    testImplementation enforcedPlatform("io.kestra:platform:$kestraVersion")
     testImplementation "io.qameta.allure:allure-junit5"
 }
 
@@ -134,6 +140,11 @@ nexusPublishing {
             snapshotRepositoryUrl.set(uri("https://s01.oss.sonatype.org/content/repositories/snapshots/"))
         }
     }
+}
+
+tasks.withType(GenerateModuleMetadata).configureEach {
+    // Suppression this validation error as we want to enforce the Kestra platform
+    suppressedValidationErrors.add('enforced-platform')
 }
 
 jar {
