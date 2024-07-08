@@ -8,6 +8,7 @@ import com.azure.storage.blob.models.*;
 import io.kestra.core.models.annotations.Plugin;
 import io.kestra.core.storages.FileAttributes;
 import io.kestra.core.storages.StorageInterface;
+import io.kestra.core.storages.StorageObject;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,6 +26,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
@@ -67,6 +69,11 @@ public class AzureStorage implements AzureConfig, StorageInterface {
 
     @Override
     public InputStream get(String tenantId, URI uri) throws IOException {
+        return this.getWithMetadata(tenantId, uri).inputStream();
+    }
+
+    @Override
+    public StorageObject getWithMetadata(String tenantId, URI uri) throws IOException {
         try {
             BlobClient blobClient = this.blob(getURI(tenantId, uri));
 
@@ -74,7 +81,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
                 throw new FileNotFoundException(uri + " (File not found)");
             }
 
-            return blobClient.openInputStream();
+            return new StorageObject(blobClient.getProperties().getMetadata(), blobClient.openInputStream());
         } catch (BlobStorageException e) {
             throw reThrowBlobStorageException(uri, e);
         }
@@ -188,13 +195,18 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     }
 
     @Override
-    public URI put(String tenantId, URI uri, InputStream data) throws IOException {
+    public URI put(String tenantId, URI uri, StorageObject storageObject) throws IOException {
         try {
             URI path = getURI(tenantId, uri);
             BlobClient blobClient = this.blob(path);
             mkdirs(path.getPath());
-            try (data) {
+            try (InputStream data = storageObject.inputStream()) {
                 blobClient.upload(data, true);
+            }
+
+            Map<String, String> metadata = storageObject.metadata();
+            if (metadata != null && !metadata.isEmpty()) {
+                blobClient.setMetadata(metadata);
             }
 
             return URI.create("kestra://" + uri.getPath());
