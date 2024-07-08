@@ -5,6 +5,8 @@ import io.kestra.core.storages.FileAttributes;
 import lombok.Builder;
 import lombok.Value;
 
+import java.util.Map;
+
 @Value
 @Builder
 public class AzureFileAttributes implements FileAttributes {
@@ -34,5 +36,10 @@ public class AzureFileAttributes implements FileAttributes {
     @Override
     public long getSize() {
         return properties.getBlobSize();
+    }
+
+    @Override
+    public Map<String, String> getMetadata() {
+        return properties.getMetadata();
     }
 }
