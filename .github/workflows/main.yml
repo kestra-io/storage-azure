@@ -59,7 +59,7 @@ jobs:
           AZURE_APPLICATION: ${{ secrets.AZURE_APPLICATION }}
         run: |
           echo $AZURE_APPLICATION | base64 -d > src/test/resources/application-secrets.yml
-          ./gradlew check -refresh-dependencies
+          ./gradlew check --refresh-dependencies
 
       # Allure check
       - name: Auth to Google Cloud
