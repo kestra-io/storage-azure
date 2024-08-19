@@ -17,12 +17,12 @@ public class AzureFileAttributes implements FileAttributes {
 
     @Override
     public long getLastModifiedTime() {
-        return properties.getLastModified().toEpochSecond();
+        return properties.getLastModified().toInstant().toEpochMilli();
     }
 
     @Override
     public long getCreationTime() {
-        return properties.getCreationTime().toEpochSecond();
+        return properties.getCreationTime().toInstant().toEpochMilli();
     }
 
     @Override
