@@ -4,7 +4,13 @@ import com.azure.core.http.rest.PagedIterable;
 import com.azure.core.util.polling.SyncPoller;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
-import com.azure.storage.blob.models.*;
+import com.azure.storage.blob.models.BlobCopyInfo;
+import com.azure.storage.blob.models.BlobErrorCode;
+import com.azure.storage.blob.models.BlobItem;
+import com.azure.storage.blob.models.BlobListDetails;
+import com.azure.storage.blob.models.BlobProperties;
+import com.azure.storage.blob.models.BlobStorageException;
+import com.azure.storage.blob.models.ListBlobsOptions;
 import io.kestra.core.models.annotations.Plugin;
 import io.kestra.core.storages.FileAttributes;
 import io.kestra.core.storages.StorageInterface;
@@ -91,8 +97,9 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     public List<URI> allByPrefix(String tenantId, URI prefix, boolean includeDirectories) {
         String path = getPath(tenantId, prefix);
         String prefixPath = prefix.getPath();
-        return addTrailingSlashToDirectories(keysForPrefix(path, true, includeDirectories))
-            .map(key -> prefixPath.startsWith("/") ? "/" + key : key)
+        Stream<String> allKeys = keysForPrefix(path, true, includeDirectories);
+        return allKeys
+            .map(key -> key.startsWith("/") ? key : "/" + key)
             .map(key -> URI.create("kestra://" + prefixPath + key.substring(path.length())))
             .toList();
     }
@@ -106,52 +113,36 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             throw new FileNotFoundException(uri + " (Not Found)");
         }
 
-        return dedupDirectoryEntries(
-            keysForPrefix(prefix, false, true)
-        ).map(throwFunction(this::getFileAttributes))
+        return keysForPrefix(prefix, false,true)
+            .map(throwFunction(this::getFileAttributes))
             .toList();
-    }
-    
-    private Stream<String> dedupDirectoryEntries(Stream<String> keys) {
-        return keys.filter(key -> !key.endsWith(DIRECTORY_MARKER_FILE));
-    }
-
-    private Stream<String> addTrailingSlashToDirectories(Stream<String> keys) {
-        List<String> keysList = keys.toList();
-        return dedupDirectoryEntries(
-            keysList.stream()
-        ).map(key -> {
-            if (keysList.contains(key + "/" + DIRECTORY_MARKER_FILE)) {
-                return key + "/";
-            }
-
-            return key;
-        });
     }
 
     private Stream<String> keysForPrefix(String prefix, boolean recursive, boolean includeDirectories) {
         ListBlobsOptions listBlobsOptions = new ListBlobsOptions()
             .setPrefix(prefix)
-            .setDetails(new BlobListDetails().setRetrieveDeletedBlobs(false).setRetrieveSnapshots(false));
+            .setDetails(new BlobListDetails()
+                .setRetrieveDeletedBlobs(false)
+                .setRetrieveSnapshots(false)
+            );
 
-        PagedIterable<BlobItem> blobItems = recursive ? this.blobContainerClient.listBlobs(listBlobsOptions, null)
-            : this.blobContainerClient.listBlobsByHierarchy("/", listBlobsOptions, null);
-        List<String> blobsKeys = blobItems.stream()
-            .map(BlobItem::getName)
-            .toList();
-        return blobsKeys
+        PagedIterable<BlobItem> blobItems = recursive ?
+            this.blobContainerClient.listBlobs(listBlobsOptions, null) :
+            this.blobContainerClient.listBlobsByHierarchy("/", listBlobsOptions, null);
+
+        List<String> blobs = blobItems.stream().map(BlobItem::getName).toList();
+
+        return blobs
             .stream()
+            .filter(item -> !item.endsWith(DIRECTORY_MARKER_FILE))
+            .map(item -> blobs.contains(item + "/" + DIRECTORY_MARKER_FILE) ? item + "/" : item)
             .filter(key -> {
-                String withoutPrefix = ("/" + key).substring(prefix.length());
+                key = ("/" + key).substring(prefix.length());
                 // Remove recursive result and requested dir
-                return !withoutPrefix.isEmpty()
-                    && !Objects.equals(withoutPrefix, prefix)
-                    && (includeDirectories || !isDirectory(key, blobsKeys));
+                return !key.isEmpty()
+                    && !key.equals("/")
+                    && (includeDirectories || !key.endsWith("/"));
             });
-    }
-
-    private static boolean isDirectory(String key, List<String> blobsKeys) {
-        return key.endsWith(DIRECTORY_MARKER_FILE) || blobsKeys.contains(key + "/" + DIRECTORY_MARKER_FILE);
     }
 
     @Override
@@ -234,7 +225,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
         if (!StringUtils.endsWith(path, "/")) {
             path += "/";
         }
-        mkdirs(path + DIRECTORY_MARKER_FILE);
+        mkdirs(path);
         return URI.create("kestra://" + uri.getPath());
     }
 
