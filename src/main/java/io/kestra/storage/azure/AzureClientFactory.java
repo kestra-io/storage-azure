@@ -51,6 +51,11 @@ public final class AzureClientFactory {
                 .managedIdentityResourceId(config.getManagedIdentityResourceId());
         }
 
+        if (config.getAdditionallyAllowedTenants() != null) {
+            defaultAzureCredentialBuilder
+                .additionallyAllowedTenants(config.getAdditionallyAllowedTenants());
+        }
+
         // endregion
 
         return defaultAzureCredentialBuilder.build();
