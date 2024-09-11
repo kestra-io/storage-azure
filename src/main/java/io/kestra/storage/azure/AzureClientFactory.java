@@ -1,6 +1,7 @@
 package io.kestra.storage.azure;
 
 import com.azure.core.credential.AzureNamedKeyCredential;
+import com.azure.identity.DefaultAzureCredential;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
@@ -22,11 +23,36 @@ public final class AzureClientFactory {
         } else if (config.getSasToken() != null ) {
             builder.sasToken(config.getSasToken());
         } else {
-            builder.credential(new DefaultAzureCredentialBuilder().build());
+            builder.credential(getDefaultAzureCredential(config));
         }
 
         BlobServiceClient blobServiceClient = builder.buildClient();
 
         return blobServiceClient.getBlobContainerClient(config.getContainer());
+    }
+
+    /**
+     * Static method for constructing a DefaultAzureCredential for the given config.
+     *
+     * @param config    The {@link AzureConfig} config.
+     * @return  a new {@link DefaultAzureCredential} instance.
+     */
+    private static DefaultAzureCredential getDefaultAzureCredential(AzureConfig config) {
+        DefaultAzureCredentialBuilder defaultAzureCredentialBuilder = new DefaultAzureCredentialBuilder();
+
+        //region Configure ManagedIdentityCredential
+        if (config.getManagedIdentityClientId() != null) {
+            defaultAzureCredentialBuilder = defaultAzureCredentialBuilder
+                .managedIdentityClientId(config.getManagedIdentityClientId());
+        }
+
+        if (config.getManagedIdentityResourceId() != null) {
+            defaultAzureCredentialBuilder
+                .managedIdentityResourceId(config.getManagedIdentityResourceId());
+        }
+
+        // endregion
+
+        return defaultAzureCredentialBuilder.build();
     }
 }
