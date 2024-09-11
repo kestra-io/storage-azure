@@ -33,7 +33,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Stream;
 
 import static io.kestra.core.utils.Rethrow.throwFunction;
@@ -59,6 +58,10 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     private String sharedKeyAccountAccessKey;
 
     private String sasToken;
+
+    private String managedIdentityClientId;
+
+    private String managedIdentityResourceId;
 
     @Getter(AccessLevel.PRIVATE)
     private BlobContainerClient blobContainerClient;
