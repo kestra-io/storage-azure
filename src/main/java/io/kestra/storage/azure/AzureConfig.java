@@ -3,6 +3,8 @@ package io.kestra.storage.azure;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import io.kestra.core.models.annotations.PluginProperty;
 
+import java.util.List;
+
 public interface AzureConfig {
 
     @PluginProperty
@@ -45,4 +47,12 @@ public interface AzureConfig {
      */
     @PluginProperty
     String getManagedIdentityResourceId();
+
+    /**
+     * For multi-tenant applications, specifies additional tenants for which the credential may acquire tokens.
+     * Add the wildcard value "*" to allow the credential to acquire tokens for any tenant the application is installed.
+     *
+     * @see DefaultAzureCredentialBuilder#additionallyAllowedTenants(List)
+     */
+    List<String> getAdditionallyAllowedTenants();
 }
