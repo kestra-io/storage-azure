@@ -49,7 +49,7 @@ dependencies {
     annotationProcessor group: "io.kestra", name: "processor", version: kestraVersion
 
     // azure
-    api platform("com.azure:azure-sdk-bom:1.2.22")
+    api platform("com.azure:azure-sdk-bom:1.2.27")
     api (group: 'com.azure', name: 'azure-identity') {
         // exclude libraries already provided by Kestra
         exclude group: 'com.fasterxml.jackson.core'
