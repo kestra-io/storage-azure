@@ -195,7 +195,6 @@ public class AzureStorage implements AzureConfig, StorageInterface {
         try {
             URI path = getURI(tenantId, uri);
             BlobClient blobClient = this.blob(path);
-            mkdirs(path.getPath());
             try (InputStream data = storageObject.inputStream()) {
                 blobClient.upload(data, true);
             }
