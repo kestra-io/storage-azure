@@ -3,13 +3,11 @@ package io.kestra.storage.azure;
 import com.azure.core.credential.AzureNamedKeyCredential;
 import com.azure.identity.DefaultAzureCredential;
 import com.azure.identity.DefaultAzureCredentialBuilder;
-import com.azure.storage.blob.BlobContainerClient;
-import com.azure.storage.blob.BlobServiceClient;
-import com.azure.storage.blob.BlobServiceClientBuilder;
+import com.azure.storage.blob.*;
 
 public final class AzureClientFactory {
 
-    public static BlobContainerClient of(final AzureConfig config) {
+    public static BlobContainerAsyncClient of(final AzureConfig config) {
         BlobServiceClientBuilder builder = new BlobServiceClientBuilder()
             .endpoint(config.getEndpoint());
 
@@ -26,9 +24,9 @@ public final class AzureClientFactory {
             builder.credential(getDefaultAzureCredential(config));
         }
 
-        BlobServiceClient blobServiceClient = builder.buildClient();
+        BlobServiceAsyncClient blobServiceClient = builder.buildAsyncClient();
 
-        return blobServiceClient.getBlobContainerClient(config.getContainer());
+        return blobServiceClient.getBlobContainerAsyncClient(config.getContainer());
     }
 
     /**

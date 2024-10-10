@@ -66,14 +66,6 @@ dependencies {
         exclude group: 'com.fasterxml.jackson.datatype', module: 'jackson-datatype-jsr310'
         exclude group: 'com.fasterxml.jackson.datatype', module: 'jackson-datatype-guava'
     }
-    api (group: 'com.microsoft.azure', name: 'azure-storage', version: '8.6.6') {
-        // exclude libraries already provided by Kestra
-        exclude group: 'com.fasterxml.jackson.core'
-        exclude group: 'com.fasterxml.jackson.dataformat', module: 'jackson-dataformat-xml'
-        exclude group: 'com.fasterxml.jackson.datatype', module: 'jackson-datatype-jdk8'
-        exclude group: 'com.fasterxml.jackson.datatype', module: 'jackson-datatype-jsr310'
-        exclude group: 'com.fasterxml.jackson.datatype', module: 'jackson-datatype-guava'
-    }
 }
 
 

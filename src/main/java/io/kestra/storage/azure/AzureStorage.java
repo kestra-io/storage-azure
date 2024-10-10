@@ -1,9 +1,9 @@
 package io.kestra.storage.azure;
 
-import com.azure.core.http.rest.PagedIterable;
+import com.azure.core.util.BinaryData;
 import com.azure.core.util.polling.SyncPoller;
-import com.azure.storage.blob.BlobClient;
-import com.azure.storage.blob.BlobContainerClient;
+import com.azure.storage.blob.BlobAsyncClient;
+import com.azure.storage.blob.BlobContainerAsyncClient;
 import com.azure.storage.blob.models.BlobCopyInfo;
 import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobItem;
@@ -22,8 +22,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.extern.jackson.Jacksonized;
 import org.apache.commons.lang3.StringUtils;
+import reactor.core.publisher.Mono;
 
-import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,6 +33,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Stream;
 
 import static io.kestra.core.utils.Rethrow.throwFunction;
@@ -66,7 +69,9 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     private List<String> additionallyAllowedTenants;
 
     @Getter(AccessLevel.PRIVATE)
-    private BlobContainerClient blobContainerClient;
+    private BlobContainerAsyncClient blobContainerClient;
+
+    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     /** {@inheritDoc} **/
     @Override
@@ -74,8 +79,8 @@ public class AzureStorage implements AzureConfig, StorageInterface {
         this.blobContainerClient = AzureClientFactory.of(this);
     }
 
-    private BlobClient blob(URI uri) {
-        return this.blobContainerClient.getBlobClient(uri.getPath());
+    private BlobAsyncClient blob(URI uri) {
+        return this.blobContainerClient.getBlobAsyncClient(uri.getPath());
     }
 
     @Override
@@ -86,13 +91,15 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     @Override
     public StorageObject getWithMetadata(String tenantId, URI uri) throws IOException {
         try {
-            BlobClient blobClient = this.blob(getURI(tenantId, uri));
+            BlobAsyncClient blobClient = this.blob(getURI(tenantId, uri));
 
-            if (!blobClient.exists()) {
+            if (!block(blobClient.exists())) {
                 throw new FileNotFoundException(uri + " (File not found)");
             }
 
-            return new StorageObject(blobClient.getProperties().getMetadata(), blobClient.openInputStream());
+            BlobProperties properties = block(blobClient.getProperties());
+            InputStream is = block(blobClient.downloadContent().map(data -> data.toStream()));
+            return new StorageObject(properties.getMetadata(), is);
         } catch (BlobStorageException e) {
             throw reThrowBlobStorageException(uri, e);
         }
@@ -131,9 +138,9 @@ public class AzureStorage implements AzureConfig, StorageInterface {
                 .setRetrieveSnapshots(false)
             );
 
-        PagedIterable<BlobItem> blobItems = recursive ?
-            this.blobContainerClient.listBlobs(listBlobsOptions, null) :
-            this.blobContainerClient.listBlobsByHierarchy("/", listBlobsOptions, null);
+        List<BlobItem> blobItems = recursive ?
+            block(this.blobContainerClient.listBlobs(listBlobsOptions, null).collectList()) :
+            block(this.blobContainerClient.listBlobsByHierarchy("/", listBlobsOptions).collectList());
 
         List<String> blobs = blobItems.stream().map(BlobItem::getName).toList();
 
@@ -157,8 +164,8 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             if (uri.getPath().endsWith("/")) {
                 uriToCheck = uri.resolve(DIRECTORY_MARKER_FILE);
             }
-            BlobClient blobClient = this.blob(getURI(tenantId, uriToCheck));
-            return blobClient.exists();
+            BlobAsyncClient blobClient = this.blob(getURI(tenantId, uriToCheck));
+            return block(blobClient.exists());
         } catch (BlobStorageException e) {
             return false;
         }
@@ -169,8 +176,8 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             if (path.endsWith("/")) {
                 path = path + DIRECTORY_MARKER_FILE;
             }
-            BlobClient blobClient = this.blobContainerClient.getBlobClient(path);
-            return blobClient.exists();
+            BlobAsyncClient blobClient = this.blobContainerClient.getBlobAsyncClient(path);
+            return block(blobClient.exists());
         } catch (BlobStorageException e) {
             return false;
         }
@@ -188,11 +195,11 @@ public class AzureStorage implements AzureConfig, StorageInterface {
         BlobProperties props = this.getDirProperties(path);
         boolean isFile = props == null;
         if (isFile) {
-            BlobClient blobClient = this.blobContainerClient.getBlobClient(path);
-            if (!blobClient.exists()) {
+            BlobAsyncClient blobClient = this.blobContainerClient.getBlobAsyncClient(path);
+            if (!block(blobClient.exists())) {
                 throw new FileNotFoundException(fileName + " (File not found)");
             }
-            props = blobClient.getProperties();
+            props = block(blobClient.getProperties());
         }
 
         return AzureFileAttributes.builder()
@@ -206,15 +213,15 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     public URI put(String tenantId, URI uri, StorageObject storageObject) throws IOException {
         try {
             URI path = getURI(tenantId, uri);
-            BlobClient blobClient = this.blob(path);
+            BlobAsyncClient blobClient = this.blob(path);
             mkdirs(path.getPath());
             try (InputStream data = storageObject.inputStream()) {
-                blobClient.upload(data, true);
+                block(blobClient.upload(BinaryData.fromStream(data), true));
             }
 
             Map<String, String> metadata = storageObject.metadata();
             if (metadata != null && !metadata.isEmpty()) {
-                blobClient.setMetadata(metadata);
+                block(blobClient.setMetadata(metadata));
             }
 
             return URI.create("kestra://" + uri.getPath());
@@ -228,11 +235,11 @@ public class AzureStorage implements AzureConfig, StorageInterface {
         if (this.dirExists(path)) {
             return !deleteByPrefix(tenantId, uri).isEmpty();
         }
-        BlobClient blobClient = this.blobContainerClient.getBlobClient(path);
-        if (!blobClient.exists()) {
+        BlobAsyncClient blobClient = this.blobContainerClient.getBlobAsyncClient(path);
+        if (!block(blobClient.exists())) {
             return false;
         }
-        blobClient.delete();
+        block(blobClient.delete());
         return true;
     }
 
@@ -263,8 +270,8 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             for (String directory : directories) {
                 aggregatedPath.append(directory).append("/");
                 if (!this.dirExists(aggregatedPath.toString())) {
-                    BlobClient blobClient = this.blob(URI.create(aggregatedPath + DIRECTORY_MARKER_FILE));
-                    blobClient.upload(new ByteArrayInputStream(new byte[]{}), true);
+                    BlobAsyncClient blobClient = this.blob(URI.create(aggregatedPath + DIRECTORY_MARKER_FILE));
+                    block(blobClient.upload(BinaryData.fromBytes(new byte[]{}), true));
                 }
             }
         } catch (BlobStorageException e) {
@@ -281,21 +288,19 @@ public class AzureStorage implements AzureConfig, StorageInterface {
         String source = getPath(tenantId, from);
         String dest = getPath(tenantId, to);
 
-        BlobContainerClient client = this.blobContainerClient;
-
         ListBlobsOptions listBlobsOptions = new ListBlobsOptions()
             .setPrefix(getPath(tenantId, from))
             .setDetails(new BlobListDetails().setRetrieveDeletedBlobs(false).setRetrieveSnapshots(false));
-        for (BlobItem itemResult : client.listBlobs(listBlobsOptions, Duration.ofSeconds(30))) {
+        for (BlobItem itemResult : block(this.blobContainerClient.listBlobs(listBlobsOptions).collectList())) {
             if (!itemResult.getName().endsWith(DIRECTORY_MARKER_FILE) && this.dirExists(itemResult.getName())) {
                 // do not copy directories
                 continue;
             }
             String destName = dest + itemResult.getName().substring(source.substring(1).length());
             mkdirs(dest);
-            BlobClient sourceClient = client.getBlobClient(itemResult.getName());
-            SyncPoller<BlobCopyInfo, Void> poller = client.getBlobClient(destName).beginCopy(sourceClient.getBlobUrl(),
-                Duration.ofSeconds(1));
+            BlobAsyncClient sourceClient = this.blobContainerClient.getBlobAsyncClient(itemResult.getName());
+            SyncPoller<BlobCopyInfo, Void> poller = this.blobContainerClient.getBlobAsyncClient(destName).beginCopy(sourceClient.getBlobUrl(),
+                Duration.ofSeconds(1)).getSyncPoller();
             poller.waitForCompletion();
         }
         deleteByPrefix(tenantId, from);
@@ -305,8 +310,6 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     @Override
     public List<URI> deleteByPrefix(String tenantId, URI storagePrefix) throws IOException {
         try {
-            BlobContainerClient client = this.blobContainerClient;
-
             String path = getPath(tenantId, storagePrefix);
             if (!path.endsWith("/")) {
                 path += "/";
@@ -317,15 +320,15 @@ public class AzureStorage implements AzureConfig, StorageInterface {
 
             List<String> deleted = new ArrayList<>();
             List<String> directories = new ArrayList<>();
-            for (BlobItem itemResult : client.listBlobs(listBlobsOptions, Duration.ofSeconds(30))) {
+            for (BlobItem itemResult : block(this.blobContainerClient.listBlobs(listBlobsOptions).collectList())) {
                 String name = itemResult.getName();
                 String strippedDirMarker = name.replace("/" + DIRECTORY_MARKER_FILE, "/");
                 if (this.dirExists(name) && !name.endsWith(DIRECTORY_MARKER_FILE)) {
                     directories.add(strippedDirMarker);
                     continue;
                 }
-                BlobClient blobClient = this.blobContainerClient.getBlobClient(name);
-                blobClient.delete();
+                BlobAsyncClient blobClient = this.blobContainerClient.getBlobAsyncClient(name);
+                block(blobClient.delete());
 
                 if (!name.endsWith(DIRECTORY_MARKER_FILE)) {
                     deleted.add(name);
@@ -336,8 +339,8 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             directories.add(path.substring(1, path.length() - 1));
             directories.sort((s1, s2) -> s2.length() - s1.length());
             for (String directory : directories) {
-                BlobClient blobClient = this.blobContainerClient.getBlobClient(directory);
-                blobClient.delete();
+                BlobAsyncClient blobClient = this.blobContainerClient.getBlobAsyncClient(directory);
+                block(blobClient.delete());
                 deleted.add(directory);
             }
 
@@ -354,7 +357,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
 
     private boolean dirExists(String path) {
         String dirPath = toDirPath(path);
-        return this.blobContainerClient.getBlobClient(dirPath).exists();
+        return block(this.blobContainerClient.getBlobAsyncClient(dirPath).exists());
     }
 
     private String toDirPath(String path) {
@@ -367,7 +370,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
 
     private BlobProperties getDirProperties(String path) {
         try {
-            return this.blobContainerClient.getBlobClient(this.toDirPath(path)).getProperties();
+            return block(this.blobContainerClient.getBlobAsyncClient(this.toDirPath(path)).getProperties());
         } catch (BlobStorageException e) {
             if (e.getStatusCode() == 404) {
                 return null;
@@ -408,6 +411,21 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     private void parentTraversalGuard(URI uri) {
         if (uri.toString().contains("..")) {
             throw new IllegalArgumentException("File should be accessed with their full path and not using relative '..' path.");
+        }
+    }
+
+    // Using the blocking client generates error when working with files of more than 1MB,
+    // see https://github.com/Azure/azure-sdk-for-java/issues/42268.
+    // To work around that, we use the async client and block in another thread (from virtual thread executor).
+    // Not nice but while waiting for a fix upstream, it fixes https://github.com/kestra-io/kestra/issues/5383
+    private <T> T block(Mono<T> mono) {
+        try {
+            return executorService.submit(() -> mono.blockOptional().orElse(null)).get();
+        } catch (InterruptedException | ExecutionException e) {
+            if (e.getCause() instanceof RuntimeException) {
+                throw (RuntimeException) e.getCause();
+            }
+            throw new RuntimeException(e);
         }
     }
 }
