@@ -164,6 +164,18 @@ public class AzureStorage implements AzureConfig, StorageInterface {
         }
     }
 
+    private boolean exists(String path) {
+        try {
+            if (path.endsWith("/")) {
+                path = path + DIRECTORY_MARKER_FILE;
+            }
+            BlobClient blobClient = this.blobContainerClient.getBlobClient(path);
+            return blobClient.exists();
+        } catch (BlobStorageException e) {
+            return false;
+        }
+    }
+
     @Override
     public FileAttributes getAttributes(String tenantId, URI uri) throws IOException {
         String path = getPath(tenantId, uri);
@@ -236,12 +248,20 @@ public class AzureStorage implements AzureConfig, StorageInterface {
 
     private void mkdirs(String path) throws IOException {
         path = path.startsWith("/") ? path : "/" + path;
+        if (!path.endsWith("/")) {
+            path = path.substring(0, path.lastIndexOf("/") + 1);
+        }
+
+        // check if it exists before creating it
+        if (exists(path)) {
+            return;
+        }
         String[] directories = path.split("/");
         StringBuilder aggregatedPath = new StringBuilder();
         try {
             // perform 1 put request per parent directory in the path
-            for (int i = 0; i <= directories.length - (path.endsWith("/") ? 1 : 2); i++) {
-                aggregatedPath.append(directories[i]).append("/");
+            for (String directory : directories) {
+                aggregatedPath.append(directory).append("/");
                 if (!this.dirExists(aggregatedPath.toString())) {
                     BlobClient blobClient = this.blob(URI.create(aggregatedPath + DIRECTORY_MARKER_FILE));
                     blobClient.upload(new ByteArrayInputStream(new byte[]{}), true);
