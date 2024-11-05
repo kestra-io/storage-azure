@@ -56,6 +56,13 @@ public final class AzureClientFactory {
 
         // endregion
 
+        //region Configure WorkloadIdentityClientId
+        if (config.getWorkloadIdentityClientId() != null) {
+            defaultAzureCredentialBuilder
+                .workloadIdentityClientId(config.getWorkloadIdentityClientId());
+        }
+        // endregion
+
         return defaultAzureCredentialBuilder.build();
     }
 }
