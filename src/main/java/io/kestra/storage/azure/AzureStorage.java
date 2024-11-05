@@ -68,6 +68,8 @@ public class AzureStorage implements AzureConfig, StorageInterface {
 
     private List<String> additionallyAllowedTenants;
 
+    private String workloadIdentityClientId;
+
     @Getter(AccessLevel.PRIVATE)
     private BlobContainerAsyncClient blobContainerClient;
 
