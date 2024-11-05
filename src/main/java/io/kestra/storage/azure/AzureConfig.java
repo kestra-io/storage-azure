@@ -55,4 +55,15 @@ public interface AzureConfig {
      * @see DefaultAzureCredentialBuilder#additionallyAllowedTenants(List)
      */
     List<String> getAdditionallyAllowedTenants();
+
+    /**
+     * Specifies the client ID of Microsoft Entra app to be used for AKS workload identity authentication.
+     *
+     * <p>
+     * If unset, the value in the AZURE_CLIENT_ID environment variable will be used.
+     * </p>
+     * @see DefaultAzureCredentialBuilder#workloadIdentityClientId(String)
+     */
+    @PluginProperty
+    String getWorkloadIdentityClientId();
 }
