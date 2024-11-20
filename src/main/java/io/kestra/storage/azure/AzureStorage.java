@@ -24,6 +24,7 @@ import lombok.extern.jackson.Jacksonized;
 import org.apache.commons.lang3.StringUtils;
 import reactor.core.publisher.Mono;
 
+import javax.annotation.Nullable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,6 +40,7 @@ import java.util.concurrent.Executors;
 import java.util.stream.Stream;
 
 import static io.kestra.core.utils.Rethrow.throwFunction;
+
 @Builder
 @Jacksonized
 @NoArgsConstructor
@@ -86,12 +88,12 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     }
 
     @Override
-    public InputStream get(String tenantId, URI uri) throws IOException {
-        return this.getWithMetadata(tenantId, uri).inputStream();
+    public InputStream get(String tenantId, @Nullable String namespace, URI uri) throws IOException {
+        return this.getWithMetadata(tenantId, namespace, uri).inputStream();
     }
 
     @Override
-    public StorageObject getWithMetadata(String tenantId, URI uri) throws IOException {
+    public StorageObject getWithMetadata(String tenantId, @Nullable String namespace, URI uri) throws IOException {
         try {
             BlobAsyncClient blobClient = this.blob(getURI(tenantId, uri));
 
@@ -108,7 +110,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     }
 
     @Override
-    public List<URI> allByPrefix(String tenantId, URI prefix, boolean includeDirectories) {
+    public List<URI> allByPrefix(String tenantId, @Nullable String namespace, URI prefix, boolean includeDirectories) {
         String path = getPath(tenantId, prefix);
         String prefixPath = prefix.getPath();
         Stream<String> allKeys = keysForPrefix(path, true, includeDirectories);
@@ -119,7 +121,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     }
 
     @Override
-    public List<FileAttributes> list(String tenantId, URI uri) throws IOException {
+    public List<FileAttributes> list(String tenantId, @Nullable String namespace, URI uri) throws IOException {
         String path = getPath(tenantId, uri);
         String prefix = (path.endsWith("/")) ? path : path + "/";
 
@@ -160,7 +162,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     }
 
     @Override
-    public boolean exists(String tenantId, URI uri) {
+    public boolean exists(String tenantId, @Nullable String namespace, URI uri) {
         try {
             URI uriToCheck = uri;
             if (uri.getPath().endsWith("/")) {
@@ -186,7 +188,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     }
 
     @Override
-    public FileAttributes getAttributes(String tenantId, URI uri) throws IOException {
+    public FileAttributes getAttributes(String tenantId, @Nullable String namespace, URI uri) throws IOException {
         String path = getPath(tenantId, uri);
         return getFileAttributes(path);
     }
@@ -212,7 +214,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     }
 
     @Override
-    public URI put(String tenantId, URI uri, StorageObject storageObject) throws IOException {
+    public URI put(String tenantId, @Nullable String namespace, URI uri, StorageObject storageObject) throws IOException {
         try {
             URI path = getURI(tenantId, uri);
             BlobAsyncClient blobClient = this.blob(path);
@@ -232,10 +234,11 @@ public class AzureStorage implements AzureConfig, StorageInterface {
         }
     }
 
-    public boolean delete(String tenantId, URI uri) throws IOException {
+    @Override
+    public boolean delete(String tenantId, @Nullable String namespace, URI uri) throws IOException {
         String path = getPath(tenantId, uri);
         if (this.dirExists(path)) {
-            return !deleteByPrefix(tenantId, uri).isEmpty();
+            return !deleteByPrefix(tenantId, namespace, uri).isEmpty();
         }
         BlobAsyncClient blobClient = this.blobContainerClient.getBlobAsyncClient(path);
         if (!block(blobClient.exists())) {
@@ -246,7 +249,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     }
 
     @Override
-    public URI createDirectory(String tenantId, URI uri) throws IOException {
+    public URI createDirectory(String tenantId, @Nullable String namespace, URI uri) throws IOException {
         String path = getPath(tenantId, uri);
         if (!StringUtils.endsWith(path, "/")) {
             path += "/";
@@ -282,8 +285,8 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     }
 
     @Override
-    public URI move(String tenantId, URI from, URI to) throws IOException {
-        if (!exists(tenantId, from)) {
+    public URI move(String tenantId, @Nullable String namespace, URI from, URI to) throws IOException {
+        if (!exists(tenantId, namespace, from)) {
             throw new FileNotFoundException(from + " (File not found)");
         }
 
@@ -305,12 +308,12 @@ public class AzureStorage implements AzureConfig, StorageInterface {
                 Duration.ofSeconds(1)).getSyncPoller();
             poller.waitForCompletion();
         }
-        deleteByPrefix(tenantId, from);
+        deleteByPrefix(tenantId, namespace, from);
         return URI.create("kestra://" + from.getPath());
     }
 
     @Override
-    public List<URI> deleteByPrefix(String tenantId, URI storagePrefix) throws IOException {
+    public List<URI> deleteByPrefix(String tenantId, @Nullable String namespace, URI storagePrefix) throws IOException {
         try {
             String path = getPath(tenantId, storagePrefix);
             if (!path.endsWith("/")) {
