@@ -48,8 +48,8 @@ dependencies {
     compileOnly group: "io.kestra", name: "core", version: kestraVersion
     annotationProcessor group: "io.kestra", name: "processor", version: kestraVersion
 
-    // azure
-    api platform("com.azure:azure-sdk-bom:1.2.27")
+    // Azure libraries are managed by the the Kestra Platform so they are aligned on all plugins
+    api platform("com.azure:azure-sdk-bom")
     api (group: 'com.azure', name: 'azure-identity') {
         // exclude libraries already provided by Kestra
         exclude group: 'com.fasterxml.jackson.core'
