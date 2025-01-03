@@ -412,13 +412,6 @@ public class AzureStorage implements AzureConfig, StorageInterface {
         return "/" + tenantId + path;
     }
 
-    // Traversal does not work with azure but it just return empty objects so throwing is more explicit
-    private void parentTraversalGuard(URI uri) {
-        if (uri.toString().contains("..")) {
-            throw new IllegalArgumentException("File should be accessed with their full path and not using relative '..' path.");
-        }
-    }
-
     // Using the blocking client generates error when working with files of more than 1MB,
     // see https://github.com/Azure/azure-sdk-for-java/issues/42268.
     // To work around that, we use the async client and block in another thread (from virtual thread executor).
