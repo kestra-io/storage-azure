@@ -1,0 +1,1 @@
+echo $AZURE_APPLICATION | base64 -d > src/test/resources/application-secrets.yml
