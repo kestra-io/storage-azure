@@ -24,7 +24,7 @@ import lombok.extern.jackson.Jacksonized;
 import org.apache.commons.lang3.StringUtils;
 import reactor.core.publisher.Mono;
 
-import javax.annotation.Nullable;
+import jakarta.annotation.Nullable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
