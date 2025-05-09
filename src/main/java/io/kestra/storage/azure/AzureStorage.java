@@ -37,7 +37,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static io.kestra.core.utils.Rethrow.throwFunction;
@@ -95,6 +94,39 @@ public class AzureStorage implements AzureConfig, StorageInterface {
         return this.getWithMetadata(tenantId, namespace, uri).inputStream();
     }
 
+    public InputStream pipedInputStream(BlobAsyncClient blobClient) throws IOException {
+        PipedOutputStream pipedOut = new PipedOutputStream();
+        PipedInputStream pipedIn = new PipedInputStream(pipedOut, 1024 * 32);
+
+        blobClient.downloadStream()
+            .doOnNext(buffer -> {
+                try {
+                    byte[] bytes = new byte[buffer.remaining()];
+                    buffer.get(bytes);
+                    pipedOut.write(bytes);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            })
+            .doOnComplete(() -> {
+                try {
+                    pipedOut.close();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            })
+            .doOnError(err -> {
+                try {
+                    pipedOut.close();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            })
+            .subscribeOn(Schedulers.boundedElastic())
+            .subscribe();
+        return pipedIn;
+    }
+
     @Override
     public StorageObject getWithMetadata(String tenantId, @Nullable String namespace, URI uri) throws IOException {
         try {
@@ -105,30 +137,8 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             }
 
             BlobProperties properties = block(blobClient.getProperties());
-            AtomicReference<ByteArrayOutputStream> downloadData = new AtomicReference<>(new ByteArrayOutputStream());
-            // 100 MB
-            Integer byteArraySizeThreshold = 100 * 1000 * 1024;
-            InputStream inputStream = block(blobClient.downloadStream().publishOn(Schedulers.boundedElastic()).reduce(
-                InputStream.nullInputStream(),
-                (is, data) -> {
-                    byte[] array = data.array();
-                    if (downloadData.get().size() + array.length > byteArraySizeThreshold) {
-                        is = new SequenceInputStream(is, new ByteArrayInputStream(downloadData.get().toByteArray()));
-                        downloadData.set(new ByteArrayOutputStream());
-                    }
+            InputStream inputStream = pipedInputStream(blobClient);
 
-                    try {
-                        downloadData.get().write(data.array());
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-
-                    return is;
-                }));
-
-            if (downloadData.get().size() > 0) {
-                inputStream = new SequenceInputStream(inputStream, new ByteArrayInputStream(downloadData.get().toByteArray()));
-            }
             return new StorageObject(properties.getMetadata(), inputStream);
         } catch (BlobStorageException e) {
             throw reThrowBlobStorageException(uri, e);
