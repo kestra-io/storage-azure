@@ -25,9 +25,9 @@ import org.apache.commons.lang3.StringUtils;
 import reactor.core.publisher.Mono;
 
 import jakarta.annotation.Nullable;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
+import reactor.core.scheduler.Schedulers;
+
+import java.io.*;
 import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -77,7 +77,9 @@ public class AzureStorage implements AzureConfig, StorageInterface {
 
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
-    /** {@inheritDoc} **/
+    /**
+     * {@inheritDoc}
+     **/
     @Override
     public void init() {
         this.blobContainerClient = AzureClientFactory.of(this);
@@ -92,6 +94,39 @@ public class AzureStorage implements AzureConfig, StorageInterface {
         return this.getWithMetadata(tenantId, namespace, uri).inputStream();
     }
 
+    public InputStream pipedInputStream(BlobAsyncClient blobClient) throws IOException {
+        PipedOutputStream pipedOut = new PipedOutputStream();
+        PipedInputStream pipedIn = new PipedInputStream(pipedOut, 1024 * 32);
+
+        blobClient.downloadStream()
+            .doOnNext(buffer -> {
+                try {
+                    byte[] bytes = new byte[buffer.remaining()];
+                    buffer.get(bytes);
+                    pipedOut.write(bytes);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            })
+            .doOnComplete(() -> {
+                try {
+                    pipedOut.close();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            })
+            .doOnError(err -> {
+                try {
+                    pipedOut.close();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            })
+            .subscribeOn(Schedulers.boundedElastic())
+            .subscribe();
+        return pipedIn;
+    }
+
     @Override
     public StorageObject getWithMetadata(String tenantId, @Nullable String namespace, URI uri) throws IOException {
         try {
@@ -102,8 +137,9 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             }
 
             BlobProperties properties = block(blobClient.getProperties());
-            InputStream is = block(blobClient.downloadContent().map(data -> data.toStream()));
-            return new StorageObject(properties.getMetadata(), is);
+            InputStream inputStream = pipedInputStream(blobClient);
+
+            return new StorageObject(properties.getMetadata(), inputStream);
         } catch (BlobStorageException e) {
             throw reThrowBlobStorageException(uri, e);
         }
@@ -129,7 +165,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             throw new FileNotFoundException(uri + " (Not Found)");
         }
 
-        return keysForPrefix(prefix, false,true)
+        return keysForPrefix(prefix, false, true)
             .map(throwFunction(this::getFileAttributes))
             .toList();
     }
