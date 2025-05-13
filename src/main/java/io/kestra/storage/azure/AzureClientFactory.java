@@ -7,7 +7,7 @@ import com.azure.storage.blob.*;
 
 public final class AzureClientFactory {
 
-    public static BlobContainerAsyncClient of(final AzureConfig config) {
+    public static BlobContainerClient of(final AzureConfig config) {
         BlobServiceClientBuilder builder = new BlobServiceClientBuilder()
             .endpoint(config.getEndpoint());
 
@@ -24,9 +24,9 @@ public final class AzureClientFactory {
             builder.credential(getDefaultAzureCredential(config));
         }
 
-        BlobServiceAsyncClient blobServiceClient = builder.buildAsyncClient();
+        BlobServiceClient blobServiceClient = builder.buildClient();
 
-        return blobServiceClient.getBlobContainerAsyncClient(config.getContainer());
+        return blobServiceClient.getBlobContainerClient(config.getContainer());
     }
 
     /**
