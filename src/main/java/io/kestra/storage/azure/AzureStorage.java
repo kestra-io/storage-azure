@@ -24,10 +24,10 @@ import lombok.extern.jackson.Jacksonized;
 import org.apache.commons.lang3.StringUtils;
 import reactor.core.publisher.Mono;
 
-import javax.annotation.Nullable;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
+import jakarta.annotation.Nullable;
+import reactor.core.scheduler.Schedulers;
+
+import java.io.*;
 import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static io.kestra.core.utils.Rethrow.throwFunction;
@@ -77,7 +78,9 @@ public class AzureStorage implements AzureConfig, StorageInterface {
 
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
-    /** {@inheritDoc} **/
+    /**
+     * {@inheritDoc}
+     **/
     @Override
     public void init() {
         this.blobContainerClient = AzureClientFactory.of(this);
@@ -102,8 +105,31 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             }
 
             BlobProperties properties = block(blobClient.getProperties());
-            InputStream is = block(blobClient.downloadContent().map(data -> data.toStream()));
-            return new StorageObject(properties.getMetadata(), is);
+            AtomicReference<ByteArrayOutputStream> downloadData = new AtomicReference<>(new ByteArrayOutputStream());
+            // 20 MB
+            int byteArraySizeThreshold = 20 * 1000 * 1024;
+            InputStream inputStream = block(blobClient.downloadStream().publishOn(Schedulers.boundedElastic()).reduce(
+                InputStream.nullInputStream(),
+                (is, data) -> {
+                    byte[] array = data.array();
+                    if (downloadData.get().size() + array.length > byteArraySizeThreshold) {
+                        is = new SequenceInputStream(is, new ByteArrayInputStream(downloadData.get().toByteArray()));
+                        downloadData.set(new ByteArrayOutputStream());
+                    }
+
+                    try {
+                        downloadData.get().write(data.array());
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+
+                    return is;
+                }));
+
+            if (downloadData.get().size() > 0) {
+                inputStream = new SequenceInputStream(inputStream, new ByteArrayInputStream(downloadData.get().toByteArray()));
+            }
+            return new StorageObject(properties.getMetadata(), inputStream);
         } catch (BlobStorageException e) {
             throw reThrowBlobStorageException(uri, e);
         }
@@ -129,7 +155,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             throw new FileNotFoundException(uri + " (Not Found)");
         }
 
-        return keysForPrefix(prefix, false,true)
+        return keysForPrefix(prefix, false, true)
             .map(throwFunction(this::getFileAttributes))
             .toList();
     }
