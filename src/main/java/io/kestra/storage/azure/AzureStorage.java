@@ -259,7 +259,6 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     }
 
     private void mkdirs(String path) throws IOException {
-        path = path.startsWith("/") ? path : "/" + path;
         if (!path.endsWith("/")) {
             path = path.substring(0, path.lastIndexOf("/") + 1);
         }
@@ -301,7 +300,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
                 // do not copy directories
                 continue;
             }
-            String destName = dest + itemResult.getName().substring(source.substring(1).length());
+            String destName = dest + itemResult.getName().substring(source.length());
             mkdirs(dest);
             BlobClient sourceClient = this.blobContainerClient.getBlobClient(itemResult.getName());
             SyncPoller<BlobCopyInfo, Void> poller = this.blobContainerClient.getBlobClient(destName).beginCopy(
@@ -342,8 +341,8 @@ public class AzureStorage implements AzureConfig, StorageInterface {
                 }
             }
 
-            // also remove main directory (we have to remove start and ending /)
-            directories.add(path.substring(1, path.length() - 1));
+            // also remove main directory (we have to remove ending /)
+            directories.add(path.substring(0, path.length() - 1));
             directories.sort((s1, s2) -> s2.length() - s1.length());
             for (String directory : directories) {
                 BlobClient blobClient = this.blobContainerClient.getBlobClient(directory);
