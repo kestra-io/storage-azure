@@ -115,7 +115,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
         String prefixPath = prefix.getPath();
         Stream<String> allKeys = keysForPrefix(path, true, includeDirectories);
         return allKeys
-            .map(key -> key.startsWith("/") ? key : "/" + key)
+            .map(key -> key.replaceFirst("^/", ""))
             .map(key -> URI.create("kestra://" + prefixPath + key.substring(path.length())))
             .toList();
     }
@@ -153,7 +153,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             .filter(item -> !item.endsWith(DIRECTORY_MARKER_FILE))
             .map(item -> blobs.contains(item + "/" + DIRECTORY_MARKER_FILE) ? item + "/" : item)
             .filter(key -> {
-                key = ("/" + key).substring(prefix.length());
+                key = key.substring(prefix.length());
                 // Remove recursive result and requested dir
                 return !key.isEmpty()
                     && !key.equals("/")
