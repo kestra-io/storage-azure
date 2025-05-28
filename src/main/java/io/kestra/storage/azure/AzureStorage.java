@@ -396,21 +396,4 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     private URI getURI(String tenantId, URI uri) {
         return URI.create(getPath(tenantId, uri));
     }
-
-    private String getPath(String tenantId, URI uri) {
-        if (uri == null) {
-            uri = URI.create("/");
-        }
-
-        parentTraversalGuard(uri);
-        String path = uri.getPath();
-        if (!path.startsWith("/")) {
-            path = "/" + path;
-        }
-
-        if (tenantId == null) {
-            return path;
-        }
-        return "/" + tenantId + path;
-    }
 }
