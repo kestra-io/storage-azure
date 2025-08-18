@@ -93,9 +93,19 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     }
 
     @Override
+    public InputStream getInstanceResource(@Nullable String namespace, URI uri) throws IOException {
+        return this.getWithMetadata(uri, getURI(uri)).inputStream();
+    }
+
+    @Override
     public StorageObject getWithMetadata(String tenantId, @Nullable String namespace, URI uri) throws IOException {
+        URI blobUri = getURI(tenantId, uri);
+        return getWithMetadata(uri, blobUri);
+    }
+
+    private StorageObject getWithMetadata(URI uri, URI blobUri) throws IOException {
         try {
-            BlobClient blobClient = this.blob(getURI(tenantId, uri));
+            BlobClient blobClient = this.blob(blobUri);
 
             if (!blobClient.exists()) {
                 throw new FileNotFoundException(uri + " (File not found)");
@@ -123,6 +133,16 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     @Override
     public List<FileAttributes> list(String tenantId, @Nullable String namespace, URI uri) throws IOException {
         String path = getPath(tenantId, uri);
+        return list(uri, path);
+    }
+
+    @Override
+    public List<FileAttributes> listInstanceResource(@Nullable String namespace, URI uri) throws IOException {
+        return list(uri, getPath(uri));
+    }
+
+    private List<FileAttributes> list(URI uri, String path)
+        throws FileNotFoundException {
         String prefix = (path.endsWith("/")) ? path : path + "/";
 
         if (!this.dirExists(path)) {
@@ -163,12 +183,27 @@ public class AzureStorage implements AzureConfig, StorageInterface {
 
     @Override
     public boolean exists(String tenantId, @Nullable String namespace, URI uri) {
+        URI uriToCheck = uri;
+        if (uri.getPath().endsWith("/")) {
+            uriToCheck = uri.resolve(DIRECTORY_MARKER_FILE);
+        }
+        URI path = getURI(tenantId, uriToCheck);
+        return exist(path);
+    }
+
+    @Override
+    public boolean existsInstanceResource(@Nullable String namespace, URI uri) {
+        URI uriToCheck = uri;
+        if (uri.getPath().endsWith("/")) {
+            uriToCheck = uri.resolve(DIRECTORY_MARKER_FILE);
+        }
+        URI path = getURI(uriToCheck);
+        return exist(path);
+    }
+
+    private boolean exist(URI path) {
         try {
-            URI uriToCheck = uri;
-            if (uri.getPath().endsWith("/")) {
-                uriToCheck = uri.resolve(DIRECTORY_MARKER_FILE);
-            }
-            BlobClient blobClient = this.blob(getURI(tenantId, uriToCheck));
+            BlobClient blobClient = this.blob(path);
             return blobClient.exists();
         } catch (BlobStorageException e) {
             return false;
@@ -193,6 +228,11 @@ public class AzureStorage implements AzureConfig, StorageInterface {
         return getFileAttributes(path);
     }
 
+    @Override
+    public FileAttributes getInstanceAttributes(@Nullable String namespace, URI uri) throws IOException {
+        return getFileAttributes(getPath(uri));
+    }
+
     private FileAttributes getFileAttributes(String path) throws FileNotFoundException {
         String fileName = Path.of(path).getFileName().toString();
 
@@ -215,8 +255,17 @@ public class AzureStorage implements AzureConfig, StorageInterface {
 
     @Override
     public URI put(String tenantId, @Nullable String namespace, URI uri, StorageObject storageObject) throws IOException {
+        URI path = getURI(tenantId, uri);
+        return put(uri, storageObject, path);
+    }
+
+    @Override
+    public URI putInstanceResource(@Nullable String namespace, URI uri, StorageObject storageObject) throws IOException {
+        return put(uri, storageObject, getURI(uri));
+    }
+
+    private URI put(URI uri, StorageObject storageObject, URI path) throws IOException {
         try {
-            URI path = getURI(tenantId, uri);
             BlobClient blobClient = this.blob(path);
             mkdirs(path.getPath());
             try (InputStream data = storageObject.inputStream()) {
@@ -249,8 +298,31 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     }
 
     @Override
+    public boolean deleteInstanceResource(@Nullable String namespace, URI uri) throws IOException {
+        String path = getPath(uri);
+        if (this.dirExists(path)) {
+            return !deleteByPrefix(null, path).isEmpty();
+        }
+        BlobClient blobClient = this.blobContainerClient.getBlobClient(path);
+        if (!blobClient.exists()) {
+            return false;
+        }
+        blobClient.delete();
+        return true;
+    }
+
+    @Override
     public URI createDirectory(String tenantId, @Nullable String namespace, URI uri) throws IOException {
         String path = getPath(tenantId, uri);
+        return createDirectory(uri, path);
+    }
+
+    @Override
+    public URI createInstanceDirectory(String namespace, URI uri) throws IOException {
+        return createDirectory(uri, getPath(uri));
+    }
+
+    private URI createDirectory(URI uri, String path) throws IOException {
         if (!StringUtils.endsWith(path, "/")) {
             path += "/";
         }
@@ -315,8 +387,12 @@ public class AzureStorage implements AzureConfig, StorageInterface {
 
     @Override
     public List<URI> deleteByPrefix(String tenantId, @Nullable String namespace, URI storagePrefix) throws IOException {
+        String path = getPath(tenantId, storagePrefix);
+        return deleteByPrefix(tenantId, path);
+    }
+
+    private List<URI> deleteByPrefix(String tenantId, String path) throws IOException {
         try {
-            String path = getPath(tenantId, storagePrefix);
             if (!path.endsWith("/")) {
                 path += "/";
             }
@@ -363,6 +439,10 @@ public class AzureStorage implements AzureConfig, StorageInterface {
 
     private boolean dirExists(String path) {
         String dirPath = toDirPath(path);
+        if (path.isEmpty() || "/".equals(path)) {
+            // root == container
+            return blobContainerClient.exists();
+        }
         return this.blobContainerClient.getBlobClient(dirPath).exists();
     }
 
@@ -394,5 +474,9 @@ public class AzureStorage implements AzureConfig, StorageInterface {
 
     private URI getURI(String tenantId, URI uri) {
         return URI.create(getPath(tenantId, uri));
+    }
+
+    private URI getURI(URI uri) {
+        return URI.create(getPath(uri));
     }
 }
