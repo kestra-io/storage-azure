@@ -22,9 +22,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.extern.jackson.Jacksonized;
-import org.apache.commons.lang3.StringUtils;
 
 import jakarta.annotation.Nullable;
+import org.apache.commons.lang3.Strings;
 
 import java.io.*;
 import java.net.URI;
@@ -323,7 +323,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     }
 
     private URI createDirectory(URI uri, String path) throws IOException {
-        if (!StringUtils.endsWith(path, "/")) {
+        if (!Strings.CS.endsWith(path, "/")) {
             path += "/";
         }
         mkdirs(path);
@@ -427,7 +427,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             }
 
             return deleted.stream()
-                .map(s -> URI.create("kestra:///" + s.replace(tenantId + "/", "")))
+                .map(s -> URI.create("kestra:///" + s.replaceFirst(tenantId + "/", "")))
                 .toList();
         } catch (BlobStorageException e) {
             if (e.getErrorCode() == BlobErrorCode.BLOB_NOT_FOUND || e.getErrorCode() == BlobErrorCode.RESOURCE_NOT_FOUND) {
