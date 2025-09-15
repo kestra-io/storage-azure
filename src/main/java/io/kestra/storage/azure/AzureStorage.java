@@ -351,7 +351,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             }
 
             return deleted.stream()
-                .map(s -> URI.create("kestra:///" + s.replace(tenantId + "/", "")))
+                .map(s -> URI.create("kestra:///" + s.replaceFirst(tenantId + "/", "")))
                 .toList();
         } catch (BlobStorageException e) {
             if (e.getErrorCode() == BlobErrorCode.BLOB_NOT_FOUND || e.getErrorCode() == BlobErrorCode.RESOURCE_NOT_FOUND) {
