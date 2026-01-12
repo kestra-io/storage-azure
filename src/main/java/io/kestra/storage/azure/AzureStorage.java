@@ -170,7 +170,8 @@ public class AzureStorage implements AzureConfig, StorageInterface {
 
         return blobs
             .stream()
-            .filter(item -> !item.endsWith(DIRECTORY_MARKER_FILE))
+            //Azure may not give folders in the blobs, so we need to get them from the .kestradirectory
+            .map(item -> Strings.CS.removeEnd(item, DIRECTORY_MARKER_FILE))
             .map(item -> blobs.contains(item + "/" + DIRECTORY_MARKER_FILE) ? item + "/" : item)
             .filter(key -> {
                 key = key.substring(prefix.length());
@@ -178,7 +179,8 @@ public class AzureStorage implements AzureConfig, StorageInterface {
                 return !key.isEmpty()
                     && !key.equals("/")
                     && (includeDirectories || !key.endsWith("/"));
-            });
+            })
+            .distinct();
     }
 
     @Override
