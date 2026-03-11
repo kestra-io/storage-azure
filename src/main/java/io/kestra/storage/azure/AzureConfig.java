@@ -1,9 +1,10 @@
 package io.kestra.storage.azure;
 
-import com.azure.identity.DefaultAzureCredentialBuilder;
-import io.kestra.core.models.annotations.PluginProperty;
-
 import java.util.List;
+
+import com.azure.identity.DefaultAzureCredentialBuilder;
+
+import io.kestra.core.models.annotations.PluginProperty;
 
 public interface AzureConfig {
 
@@ -31,6 +32,7 @@ public interface AzureConfig {
      * <p>
      * If unset, the value in the AZURE_CLIENT_ID environment variable will be used.
      * </p>
+     * 
      * @see DefaultAzureCredentialBuilder#managedIdentityClientId(String)
      */
     @PluginProperty
@@ -43,6 +45,7 @@ public interface AzureConfig {
      * <p>
      * If unset, the value in the AZURE_CLIENT_ID environment variable will be used.
      * </p>
+     * 
      * @see DefaultAzureCredentialBuilder#managedIdentityResourceId(String)
      */
     @PluginProperty
@@ -62,6 +65,7 @@ public interface AzureConfig {
      * <p>
      * If unset, the value in the AZURE_CLIENT_ID environment variable will be used.
      * </p>
+     * 
      * @see DefaultAzureCredentialBuilder#workloadIdentityClientId(String)
      */
     @PluginProperty

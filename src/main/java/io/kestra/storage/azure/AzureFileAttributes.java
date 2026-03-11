@@ -1,11 +1,13 @@
 package io.kestra.storage.azure;
 
+import java.util.Map;
+
 import com.azure.storage.blob.models.BlobProperties;
+
 import io.kestra.core.storages.FileAttributes;
+
 import lombok.Builder;
 import lombok.Value;
-
-import java.util.Map;
 
 @Value
 @Builder

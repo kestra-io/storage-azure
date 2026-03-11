@@ -14,11 +14,13 @@ public final class AzureClientFactory {
         if (config.getConnectionString() != null) {
             builder.connectionString(config.getConnectionString());
         } else if (config.getSharedKeyAccountName() != null && config.getSharedKeyAccountAccessKey() != null) {
-            builder.credential(new AzureNamedKeyCredential(
-                config.getSharedKeyAccountName(),
-                config.getSharedKeyAccountAccessKey()
-            ));
-        } else if (config.getSasToken() != null ) {
+            builder.credential(
+                new AzureNamedKeyCredential(
+                    config.getSharedKeyAccountName(),
+                    config.getSharedKeyAccountAccessKey()
+                )
+            );
+        } else if (config.getSasToken() != null) {
             builder.sasToken(config.getSasToken());
         } else {
             builder.credential(getDefaultAzureCredential(config));
@@ -32,8 +34,8 @@ public final class AzureClientFactory {
     /**
      * Static method for constructing a DefaultAzureCredential for the given config.
      *
-     * @param config    The {@link AzureConfig} config.
-     * @return  a new {@link DefaultAzureCredential} instance.
+     * @param config The {@link AzureConfig} config.
+     * @return a new {@link DefaultAzureCredential} instance.
      */
     private static DefaultAzureCredential getDefaultAzureCredential(AzureConfig config) {
         DefaultAzureCredentialBuilder defaultAzureCredentialBuilder = new DefaultAzureCredentialBuilder();

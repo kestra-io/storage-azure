@@ -1,5 +1,18 @@
 package io.kestra.storage.azure;
 
+import java.io.*;
+import java.net.URI;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.stream.Stream;
+
+import org.apache.commons.lang3.Strings;
+
 import com.azure.core.http.rest.PagedIterable;
 import com.azure.core.util.BinaryData;
 import com.azure.core.util.polling.SyncPoller;
@@ -12,30 +25,19 @@ import com.azure.storage.blob.models.BlobListDetails;
 import com.azure.storage.blob.models.BlobProperties;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.models.ListBlobsOptions;
+
 import io.kestra.core.models.annotations.Plugin;
 import io.kestra.core.storages.FileAttributes;
 import io.kestra.core.storages.StorageInterface;
 import io.kestra.core.storages.StorageObject;
+
+import jakarta.annotation.Nullable;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.extern.jackson.Jacksonized;
-
-import jakarta.annotation.Nullable;
-import org.apache.commons.lang3.Strings;
-
-import java.io.*;
-import java.net.URI;
-import java.nio.file.Path;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.stream.Stream;
 
 import static io.kestra.core.utils.Rethrow.throwFunction;
 
@@ -157,14 +159,13 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     private Stream<String> keysForPrefix(String prefix, boolean recursive, boolean includeDirectories) {
         ListBlobsOptions listBlobsOptions = new ListBlobsOptions()
             .setPrefix(prefix)
-            .setDetails(new BlobListDetails()
-                .setRetrieveDeletedBlobs(false)
-                .setRetrieveSnapshots(false)
+            .setDetails(
+                new BlobListDetails()
+                    .setRetrieveDeletedBlobs(false)
+                    .setRetrieveSnapshots(false)
             );
 
-        PagedIterable<BlobItem> blobItems = recursive ?
-            this.blobContainerClient.listBlobs(listBlobsOptions, null) :
-            this.blobContainerClient.listBlobsByHierarchy("/", listBlobsOptions, null);
+        PagedIterable<BlobItem> blobItems = recursive ? this.blobContainerClient.listBlobs(listBlobsOptions, null) : this.blobContainerClient.listBlobsByHierarchy("/", listBlobsOptions, null);
 
         List<String> blobs = blobItems.stream().map(BlobItem::getName).toList();
 
@@ -173,7 +174,8 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             //Azure may not give folders in the blobs, so we need to get them from the .kestradirectory
             .map(item -> Strings.CS.removeEnd(item, DIRECTORY_MARKER_FILE))
             .map(item -> blobs.contains(item + "/" + DIRECTORY_MARKER_FILE) ? item + "/" : item)
-            .filter(key -> {
+            .filter(key ->
+            {
                 key = key.substring(prefix.length());
                 // Remove recursive result and requested dir
                 return !key.isEmpty()
@@ -349,7 +351,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
                 aggregatedPath.append(directory).append("/");
                 if (!this.dirExists(aggregatedPath.toString())) {
                     BlobClient blobClient = this.blob(URI.create(aggregatedPath + DIRECTORY_MARKER_FILE));
-                    blobClient.upload(BinaryData.fromBytes(new byte[]{}), true);
+                    blobClient.upload(BinaryData.fromBytes(new byte[] {}), true);
                 }
             }
         } catch (BlobStorageException e) {
@@ -369,7 +371,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
         ListBlobsOptions listBlobsOptions = new ListBlobsOptions()
             .setPrefix(getPath(tenantId, from))
             .setDetails(new BlobListDetails().setRetrieveDeletedBlobs(false).setRetrieveSnapshots(false));
-        for (BlobItem itemResult : this.blobContainerClient.listBlobs(listBlobsOptions, null)){
+        for (BlobItem itemResult : this.blobContainerClient.listBlobs(listBlobsOptions, null)) {
             if (!itemResult.getName().endsWith(DIRECTORY_MARKER_FILE) && this.dirExists(itemResult.getName())) {
                 // do not copy directories
                 continue;
