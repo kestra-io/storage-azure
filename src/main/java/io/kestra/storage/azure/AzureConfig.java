@@ -8,22 +8,22 @@ import io.kestra.core.models.annotations.PluginProperty;
 
 public interface AzureConfig {
 
-    @PluginProperty
+    @PluginProperty(group = "connection")
     String getEndpoint();
 
-    @PluginProperty
+    @PluginProperty(group = "advanced")
     String getContainer();
 
-    @PluginProperty
+    @PluginProperty(group = "connection")
     String getConnectionString();
 
-    @PluginProperty
+    @PluginProperty(group = "advanced")
     String getSharedKeyAccountName();
 
-    @PluginProperty
+    @PluginProperty(group = "connection")
     String getSharedKeyAccountAccessKey();
 
-    @PluginProperty
+    @PluginProperty(group = "connection")
     String getSasToken();
 
     /**
@@ -35,7 +35,7 @@ public interface AzureConfig {
      * 
      * @see DefaultAzureCredentialBuilder#managedIdentityClientId(String)
      */
-    @PluginProperty
+    @PluginProperty(group = "advanced")
     String getManagedIdentityClientId();
 
     /**
@@ -48,7 +48,7 @@ public interface AzureConfig {
      * 
      * @see DefaultAzureCredentialBuilder#managedIdentityResourceId(String)
      */
-    @PluginProperty
+    @PluginProperty(group = "advanced")
     String getManagedIdentityResourceId();
 
     /**
@@ -68,6 +68,6 @@ public interface AzureConfig {
      * 
      * @see DefaultAzureCredentialBuilder#workloadIdentityClientId(String)
      */
-    @PluginProperty
+    @PluginProperty(group = "advanced")
     String getWorkloadIdentityClientId();
 }
