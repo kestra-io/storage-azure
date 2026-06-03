@@ -4,11 +4,13 @@ import java.io.*;
 import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Stream;
 
 import org.apache.commons.lang3.Strings;
@@ -436,6 +438,103 @@ public class AzureStorage implements AzureConfig, StorageInterface {
         } catch (BlobStorageException e) {
             if (e.getErrorCode() == BlobErrorCode.BLOB_NOT_FOUND || e.getErrorCode() == BlobErrorCode.RESOURCE_NOT_FOUND) {
                 return List.of();
+            }
+            throw new IOException(e);
+        }
+    }
+
+    @Override
+    public List<URI> purgeByLastModified(
+        String tenantId,
+        @Nullable String namespace,
+        URI prefix,
+        @Nullable Instant startDate,
+        @Nullable Instant endDate,
+        boolean dryRun) throws IOException {
+        String resolvedPath = getPath(tenantId, prefix);
+        if (!resolvedPath.endsWith("/")) {
+            resolvedPath += "/";
+        }
+        final String blobPrefix = resolvedPath;
+        String prefixPath = prefix.getPath();
+
+        ListBlobsOptions options = new ListBlobsOptions()
+            .setPrefix(blobPrefix)
+            .setDetails(new BlobListDetails().setRetrieveDeletedBlobs(false).setRetrieveSnapshots(false));
+
+        List<URI> matched = new ArrayList<>();
+        try {
+            for (BlobItem item : this.blobContainerClient.listBlobs(options, null)) {
+                String name = item.getName();
+                // skip directory markers — purge targets files only
+                if (name.endsWith("/" + DIRECTORY_MARKER_FILE) || name.endsWith(DIRECTORY_MARKER_FILE)) {
+                    continue;
+                }
+                if (isInWindow(item, startDate, endDate)) {
+                    matched.add(URI.create("kestra://" + prefixPath + name.substring(blobPrefix.length())));
+                }
+            }
+        } catch (BlobStorageException e) {
+            if (e.getErrorCode() == BlobErrorCode.BLOB_NOT_FOUND || e.getErrorCode() == BlobErrorCode.RESOURCE_NOT_FOUND) {
+                return List.of();
+            }
+            throw new IOException(e);
+        }
+
+        if (dryRun || matched.isEmpty()) {
+            return matched;
+        }
+
+        var pool = Executors.newFixedThreadPool(16);
+        try {
+            List<Future<Void>> futures = matched.stream()
+                .<Future<Void>> map(uri -> pool.submit(() ->
+                {
+                    deleteBlobByStoragePath(uri, prefixPath, blobPrefix);
+                    return null;
+                }))
+                .toList();
+            for (Future<Void> future : futures) {
+                try {
+                    future.get();
+                } catch (java.util.concurrent.ExecutionException e) {
+                    var cause = e.getCause();
+                    if (cause instanceof IOException ioe) {
+                        throw ioe;
+                    }
+                    throw new IOException("Failed to delete blob during purge", cause);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Purge interrupted", e);
+                }
+            }
+        } finally {
+            pool.shutdown();
+        }
+
+        return matched;
+    }
+
+    private boolean isInWindow(BlobItem item, @Nullable Instant startDate, @Nullable Instant endDate) {
+        var lastModified = item.getProperties().getLastModified();
+        if (lastModified == null) {
+            return false;
+        }
+        var ts = lastModified.toInstant();
+        return (startDate == null || !ts.isBefore(startDate))
+            && (endDate == null || !ts.isAfter(endDate));
+    }
+
+    private void deleteBlobByStoragePath(URI kestraUri, String prefixPath, String blobPrefix) throws IOException {
+        // reconstruct blob name: blobPrefix + suffix part of the kestra URI
+        String suffix = kestraUri.getPath().substring(prefixPath.length());
+        String blobName = blobPrefix + suffix;
+        try {
+            this.blobContainerClient.getBlobClient(blobName).delete();
+        } catch (BlobStorageException e) {
+            // already gone — treat as success
+            if (e.getErrorCode() == BlobErrorCode.BLOB_NOT_FOUND || e.getErrorCode() == BlobErrorCode.RESOURCE_NOT_FOUND) {
+                return;
             }
             throw new IOException(e);
         }
