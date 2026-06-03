@@ -456,7 +456,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             resolvedPath += "/";
         }
         final String blobPrefix = resolvedPath;
-        String prefixPath = prefix.getPath();
+        String prefixPath = prefix.getPath().endsWith("/") ? prefix.getPath() : prefix.getPath() + "/";
 
         ListBlobsOptions options = new ListBlobsOptions()
             .setPrefix(blobPrefix)
@@ -467,7 +467,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             for (BlobItem item : this.blobContainerClient.listBlobs(options, null)) {
                 String name = item.getName();
                 // skip directory markers — purge targets files only
-                if (name.endsWith("/" + DIRECTORY_MARKER_FILE) || name.endsWith(DIRECTORY_MARKER_FILE)) {
+                if (name.endsWith(DIRECTORY_MARKER_FILE)) {
                     continue;
                 }
                 if (isInWindow(item, startDate, endDate)) {
