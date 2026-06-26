@@ -1,9 +1,9 @@
 plugins {
     id 'io.kestra.gradle.repository-conventions' version '1.2.3'
-    id "io.kestra.gradle.inject-bom-versions" version "1.1.0"
+    id "io.kestra.gradle.inject-bom-versions" version "1.2.4"
     id "io.kestra.gradle.plugin-doc-lint" version "1.2.4"
     id "com.vanniktech.maven.publish" version "0.37.0"
-    id 'io.kestra.gradle.spotless-conventions' version '1.1.0'
+    id 'io.kestra.gradle.spotless-conventions' version '1.2.4'
     id 'java-library'
     id "idea"
     id 'jacoco'
@@ -118,7 +118,7 @@ dependencies {
  **********************************************************************************************************************/
 dependencies {
     testImplementation enforcedPlatform("io.kestra:platform:$kestraVersion")
-    testImplementation "io.qameta.allure:allure-junit5:2.34.0"
+    testImplementation "io.qameta.allure:allure-junit5:2.35.3"
 }
 
 configurations {
