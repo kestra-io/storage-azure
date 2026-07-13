@@ -8,3 +8,7 @@ kestra:
     azure:
       endpoint: "https://unittestkt.blob.core.windows.net"
       container: storage
+
+grpc:
+  server:
+    enabled: false

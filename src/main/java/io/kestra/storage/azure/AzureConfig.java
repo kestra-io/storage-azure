@@ -14,16 +14,16 @@ public interface AzureConfig {
     @PluginProperty(group = "advanced")
     String getContainer();
 
-    @PluginProperty(group = "connection")
+    @PluginProperty(group = "connection", secret = true)
     String getConnectionString();
 
     @PluginProperty(group = "advanced")
     String getSharedKeyAccountName();
 
-    @PluginProperty(group = "connection")
+    @PluginProperty(group = "connection", secret = true)
     String getSharedKeyAccountAccessKey();
 
-    @PluginProperty(group = "connection")
+    @PluginProperty(group = "connection", secret = true)
     String getSasToken();
 
     /**
