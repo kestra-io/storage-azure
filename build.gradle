@@ -118,7 +118,7 @@ dependencies {
  **********************************************************************************************************************/
 dependencies {
     testImplementation enforcedPlatform("io.kestra:platform:$kestraVersion")
-    testImplementation "io.qameta.allure:allure-junit5:2.35.3"
+    testImplementation "io.qameta.allure:allure-junit5:2.35.4"
 }
 
 configurations {
