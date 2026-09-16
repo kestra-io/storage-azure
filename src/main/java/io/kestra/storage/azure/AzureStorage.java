@@ -2,6 +2,7 @@ package io.kestra.storage.azure;
 
 import java.io.*;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -130,7 +131,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
         Stream<String> allKeys = keysForPrefix(path, true, includeDirectories);
         return allKeys
             .map(key -> key.replaceFirst("^/", ""))
-            .map(key -> URI.create("kestra://" + prefixPath + key.substring(path.length())))
+            .map(key -> kestraUri(prefixPath + key.substring(path.length())))
             .toList();
     }
 
@@ -283,7 +284,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
                 blobClient.setMetadata(metadata);
             }
 
-            return URI.create("kestra://" + uri.getPath());
+            return kestraUri(uri.getPath());
         } catch (BlobStorageException e) {
             throw reThrowBlobStorageException(uri, e);
         }
@@ -333,7 +334,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             path += "/";
         }
         mkdirs(path);
-        return URI.create("kestra://" + uri.getPath());
+        return kestraUri(uri.getPath());
     }
 
     private void mkdirs(String path) throws IOException {
@@ -352,12 +353,12 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             for (String directory : directories) {
                 aggregatedPath.append(directory).append("/");
                 if (!this.dirExists(aggregatedPath.toString())) {
-                    BlobClient blobClient = this.blob(URI.create(aggregatedPath + DIRECTORY_MARKER_FILE));
+                    BlobClient blobClient = this.blob(pathUri(aggregatedPath + DIRECTORY_MARKER_FILE));
                     blobClient.upload(BinaryData.fromBytes(new byte[] {}), true);
                 }
             }
         } catch (BlobStorageException e) {
-            throw reThrowBlobStorageException(URI.create(path), e);
+            throw reThrowBlobStorageException(pathUri(path), e);
         }
     }
 
@@ -388,7 +389,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             poller.waitForCompletion();
         }
         deleteByPrefix(tenantId, namespace, from);
-        return URI.create("kestra://" + from.getPath());
+        return kestraUri(from.getPath());
     }
 
     @Override
@@ -433,7 +434,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
             }
 
             return deleted.stream()
-                .map(s -> URI.create("kestra:///" + s.replaceFirst(tenantId + "/", "")))
+                .map(s -> kestraUri(s.replaceFirst(tenantId + "/", "")))
                 .toList();
         } catch (BlobStorageException e) {
             if (e.getErrorCode() == BlobErrorCode.BLOB_NOT_FOUND || e.getErrorCode() == BlobErrorCode.RESOURCE_NOT_FOUND) {
@@ -471,7 +472,7 @@ public class AzureStorage implements AzureConfig, StorageInterface {
                     continue;
                 }
                 if (isInWindow(item, startDate, endDate)) {
-                    matched.add(URI.create("kestra://" + prefixPath + name.substring(blobPrefix.length())));
+                    matched.add(kestraUri(prefixPath + name.substring(blobPrefix.length())));
                 }
             }
         } catch (BlobStorageException e) {
@@ -576,10 +577,26 @@ public class AzureStorage implements AzureConfig, StorageInterface {
     }
 
     private URI getURI(String tenantId, URI uri) {
-        return URI.create(getPath(tenantId, uri));
+        return pathUri(getPath(tenantId, uri));
     }
 
     private URI getURI(URI uri) {
-        return URI.create(getPath(uri));
+        return pathUri(getPath(uri));
+    }
+
+    private static URI kestraUri(String path) {
+        try {
+            return new URI("kestra", "", path.startsWith("/") ? path : "/" + path, null, null);
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("Invalid Kestra storage path: " + path, e);
+        }
+    }
+
+    private static URI pathUri(String path) {
+        try {
+            return new URI(null, null, path, null);
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("Invalid storage path: " + path, e);
+        }
     }
 }
