@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import io.kestra.core.docs.JsonSchemaGenerator;
 import io.kestra.core.junit.annotations.KestraTest;
+import io.kestra.core.storages.StorageInterface;
 
 import jakarta.inject.Inject;
 
@@ -21,10 +22,9 @@ class AzureStorageSchemaTest {
     @SuppressWarnings("unchecked")
     @Test
     void schema() {
-        var schema = jsonSchemaGenerator.schemas(AzureStorage.class, false);
+        var schema = jsonSchemaGenerator.properties(StorageInterface.class, AzureStorage.class);
 
-        var definitions = (Map<String, Object>) schema.get("definitions");
-        var properties = (Map<String, Object>) ((Map<String, Object>) definitions.get(AzureStorage.class.getName())).get("properties");
+        var properties = (Map<String, Object>) schema.get("properties");
         assertThat(properties, hasKey("connectionString"));
         assertThat(properties, not(hasKey("blobContainerClient")));
     }
