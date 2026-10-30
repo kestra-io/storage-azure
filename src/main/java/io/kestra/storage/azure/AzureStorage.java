@@ -9,7 +9,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.Stream;
@@ -33,6 +32,8 @@ import io.kestra.core.models.annotations.Plugin;
 import io.kestra.core.storages.FileAttributes;
 import io.kestra.core.storages.StorageInterface;
 import io.kestra.core.storages.StorageObject;
+
+import io.swagger.v3.oas.annotations.Hidden;
 
 import jakarta.annotation.Nullable;
 import lombok.AccessLevel;
@@ -75,10 +76,9 @@ public class AzureStorage implements AzureConfig, StorageInterface {
 
     private String workloadIdentityClientId;
 
+    @Hidden
     @Getter(AccessLevel.PRIVATE)
     private BlobContainerClient blobContainerClient;
-
-    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     /**
      * {@inheritDoc}
