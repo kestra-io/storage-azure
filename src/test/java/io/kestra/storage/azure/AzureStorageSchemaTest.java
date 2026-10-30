@@ -21,10 +21,10 @@ class AzureStorageSchemaTest {
     @SuppressWarnings("unchecked")
     @Test
     void schema() {
-        Map<String, Object> schema = jsonSchemaGenerator.schemas(AzureStorage.class, false);
+        var schema = jsonSchemaGenerator.schemas(AzureStorage.class, false);
 
-        Map<String, Object> definitions = (Map<String, Object>) schema.get("definitions");
-        Map<String, Object> properties = (Map<String, Object>) ((Map<String, Object>) definitions.get(AzureStorage.class.getName())).get("properties");
+        var definitions = (Map<String, Object>) schema.get("definitions");
+        var properties = (Map<String, Object>) ((Map<String, Object>) definitions.get(AzureStorage.class.getName())).get("properties");
         assertThat(properties, hasKey("connectionString"));
         assertThat(properties, not(hasKey("blobContainerClient")));
     }
